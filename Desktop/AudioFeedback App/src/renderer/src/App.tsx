@@ -19,8 +19,11 @@ import { useAudioAnalysis } from './hooks/useAudioAnalysis'
 import { useAnnotations } from './hooks/useAnnotations'
 import { useScreenRecorder } from './hooks/useScreenRecorder'
 import { useCameraInput } from './hooks/useCameraInput'
-import { useAIFeedback } from './hooks/useAIFeedback'
+import { useAIFeedback, SCOPE_LABELS } from './hooks/useAIFeedback'
+import type { KnowledgeScope } from './hooks/useAIFeedback'
 import { useDomain, DOMAIN_CONFIG } from './hooks/useDomain'
+import { PROVIDER_CONFIG } from './utils/aiClient'
+import type { AIProvider } from './utils/aiClient'
 import type { Domain } from './hooks/useDomain'
 import type { Annotation } from './types'
 import type { CaptureSource } from './hooks/useScreenRecorder'
@@ -85,6 +88,10 @@ export default function App() {
   const [micError, setMicError] = useState<string | null>(null)
   const [webcamError, setWebcamError] = useState<string | null>(null)
   const [showAudioPicker, setShowAudioPicker] = useState(false)
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(() => {
+    const p = localStorage.getItem('mm_ai_provider') ?? 'anthropic'
+    return !localStorage.getItem(`mm_ai_key_${p}`) && !localStorage.getItem('mm_ai_key') && !localStorage.getItem('anthropic_api_key')
+  })
   const audioPickerBtnRef = useRef<HTMLButtonElement>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLDivElement>(null)
@@ -161,7 +168,8 @@ export default function App() {
 
     // Regular mic device — open the stream, start analysis immediately
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId } } })
+      const audioConstraints = deviceId ? { deviceId: { exact: deviceId } } : true
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints })
       setMicStream(stream)
       setSelectedMicId(deviceId)
       setAudioSource('mic')
@@ -711,9 +719,6 @@ ${ann.comments.length === 0
               hasVideo={mediaMode === 'file' && !!mediaPath}
               videoEnded={videoEnded}
               knowledgeScope={ai.knowledgeScope}
-              onSaveApiKey={ai.saveApiKey}
-              onSaveProvider={ai.saveProvider}
-              onSaveRole={ai.saveRole}
               onSaveKnowledgeScope={ai.saveKnowledgeScope}
               onSend={ai.send}
               onSendWithImages={ai.sendWithImages}
@@ -787,6 +792,110 @@ ${ann.comments.length === 0
                   Import a file or start a webcam session, then return here for the full report.
                 </p>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Settings & AI Keys drawer (bottom of sidebar) ─────── */}
+        <div style={{ borderTop: '2px solid #bae6fd', flexShrink: 0 }}>
+          {/* Toggle bar */}
+          <button
+            onClick={() => setShowSettingsDrawer(v => !v)}
+            style={{
+              width: '100%', border: 'none', background: '#e0f2fe',
+              color: '#0369a1', cursor: 'pointer', display: 'flex',
+              alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 14px', fontSize: 12, fontWeight: 700
+            }}
+          >
+            <span>⚙ Settings &amp; AI Keys</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {ai.apiKey
+                ? <span style={{ fontSize: 10, fontWeight: 600, color: '#16a34a', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '1px 7px' }}>Key saved ✓</span>
+                : <span style={{ fontSize: 10, fontWeight: 600, color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '1px 7px' }}>No key</span>
+              }
+              <span>{showSettingsDrawer ? '▴' : '▾'}</span>
+            </span>
+          </button>
+
+          {/* Drawer content */}
+          {showSettingsDrawer && (
+            <div style={{ background: '#f8fafc', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Provider selector */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>AI Provider</div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {(['anthropic', 'openai', 'gemini'] as const).map(p => {
+                    const cfg = PROVIDER_CONFIG[p]
+                    const active = ai.provider === p
+                    return (
+                      <button key={p} onClick={() => ai.saveProvider(p)} style={{
+                        flex: 1, background: active ? '#eff6ff' : '#fff',
+                        border: `1.5px solid ${active ? '#3b82f6' : '#e2e8f0'}`,
+                        borderRadius: 7, color: active ? '#1d4ed8' : '#475569',
+                        cursor: 'pointer', fontSize: 10, fontWeight: active ? 700 : 500,
+                        padding: '5px 4px', textAlign: 'center', lineHeight: 1.3
+                      }}>
+                        <div style={{ fontSize: 13 }}>{cfg.icon}</div>
+                        <div>{p === 'anthropic' ? 'Claude' : p === 'openai' ? 'GPT-4o' : 'Gemini'}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* API Key */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>
+                  {PROVIDER_CONFIG[ai.provider].label} API Key
+                </div>
+                <SidebarKeyInput
+                  apiKey={ai.apiKey}
+                  provider={ai.provider}
+                  onSave={ai.saveApiKey}
+                />
+              </div>
+
+              {/* Role */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>Role</div>
+                <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                  {(['professor', 'student'] as const).map(r => (
+                    <button key={r} onClick={() => ai.saveRole(r)} style={{
+                      flex: 1, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                      padding: '5px 0',
+                      background: ai.role === r ? (r === 'professor' ? '#7c3aed' : '#0369a1') : '#f1f5f9',
+                      color: ai.role === r ? '#fff' : '#64748b'
+                    }}>
+                      {r === 'professor' ? 'Professor' : 'Student'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Knowledge Scope */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>Knowledge Scope</div>
+                <input
+                  type="range" min={1} max={5} step={1}
+                  value={ai.knowledgeScope}
+                  onChange={e => ai.saveKnowledgeScope(parseInt(e.target.value, 10) as KnowledgeScope)}
+                  style={{ width: '100%', cursor: 'pointer', accentColor: '#3b82f6' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 1, marginBottom: 4 }}>
+                  {([1, 2, 3, 4, 5] as KnowledgeScope[]).map(n => (
+                    <span key={n} style={{ fontSize: 9, color: ai.knowledgeScope === n ? '#1d4ed8' : '#94a3b8', fontWeight: ai.knowledgeScope === n ? 700 : 400, cursor: 'pointer', textAlign: 'center', width: '20%' }}
+                      onClick={() => ai.saveKnowledgeScope(n)}>
+                      {SCOPE_LABELS[n].icon}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '3px 7px', fontSize: 10, color: '#1e40af', lineHeight: 1.4 }}>
+                  <strong>{SCOPE_LABELS[ai.knowledgeScope].icon} {SCOPE_LABELS[ai.knowledgeScope].label}</strong> — {SCOPE_LABELS[ai.knowledgeScope].description}
+                </div>
+              </div>
+
             </div>
           )}
         </div>
@@ -1390,6 +1499,34 @@ function btnStyle(bg: string): React.CSSProperties {
     padding: '6px 12px',
     whiteSpace: 'nowrap'
   }
+}
+
+// ---- Sidebar API key input (self-contained, auto-saves on blur/Enter) ----
+function SidebarKeyInput({ apiKey, provider, onSave }: { apiKey: string; provider: AIProvider; onSave: (k: string) => void }) {
+  const [draft, setDraft] = React.useState(apiKey)
+  const [show, setShow] = React.useState(false)
+  React.useEffect(() => { setDraft(apiKey) }, [apiKey])
+  function save() { if (draft.trim()) onSave(draft.trim()) }
+  return (
+    <div style={{ display: 'flex', gap: 5 }}>
+      <input
+        type={show ? 'text' : 'password'}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={e => e.key === 'Enter' && save()}
+        placeholder={PROVIDER_CONFIG[provider].placeholder}
+        style={{
+          flex: 1, border: '1px solid #e2e8f0', borderRadius: 6,
+          fontSize: 11, padding: '5px 8px', background: '#fff',
+          fontFamily: 'monospace', color: '#1e293b', outline: 'none'
+        }}
+      />
+      <button onClick={() => setShow(v => !v)} style={{ border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, padding: '0 7px' }}>
+        {show ? '🙈' : '👁'}
+      </button>
+    </div>
+  )
 }
 
 const styles: Record<string, React.CSSProperties> = {

@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react'
 import type { AIFeedbackState, AIFeedbackOptions, UserRole, KnowledgeScope } from '../hooks/useAIFeedback'
-import { buildSystemPrompt, SCOPE_LABELS } from '../hooks/useAIFeedback'
+import { buildSystemPrompt } from '../hooks/useAIFeedback'
 import { useAIKnowledgeBase, CATEGORY_LABELS, CATEGORY_COLORS } from '../hooks/useAIKnowledgeBase'
 import type { KnowledgeCategory, KnowledgeItem } from '../hooks/useAIKnowledgeBase'
 import type { Domain } from '../hooks/useDomain'
 import { DOMAIN_CONFIG } from '../hooks/useDomain'
 import { useVisualAnalysis } from '../hooks/useVisualAnalysis'
 import type { FrameSample } from '../types'
-import { type AIProvider, PROVIDER_CONFIG } from '../utils/aiClient'
+import type { AIProvider } from '../utils/aiClient'
 
 interface Props {
   state: AIFeedbackState
@@ -19,9 +19,6 @@ interface Props {
   hasVideo: boolean
   videoEnded: boolean
   knowledgeScope: KnowledgeScope
-  onSaveApiKey: (key: string) => void
-  onSaveProvider: (p: AIProvider) => void
-  onSaveRole: (r: UserRole) => void
   onSaveKnowledgeScope: (s: KnowledgeScope) => void
   onSend: (text: string, systemPrompt: string, displayName?: string) => void
   onSendWithImages: (displayText: string, frames: FrameSample[], systemPrompt: string) => void
@@ -43,9 +40,6 @@ export function AIFeedbackPanel({
   hasVideo,
   videoEnded,
   knowledgeScope,
-  onSaveApiKey,
-  onSaveProvider,
-  onSaveRole,
   onSaveKnowledgeScope,
   onSend,
   onSendWithImages,
@@ -55,15 +49,7 @@ export function AIFeedbackPanel({
   videoRef
 }: Props) {
   const [input, setInput] = useState('')
-  const [showSettings, setShowSettings] = useState(!apiKey)
   const [showKB, setShowKB] = useState(false)
-  const [draftKey, setDraftKey] = useState(apiKey)
-  const [showKey, setShowKey] = useState(false)
-
-  // Keep draft in sync when the stored key changes (e.g. provider switch)
-  useEffect(() => {
-    setDraftKey(apiKey)
-  }, [apiKey])
   const [frames, setFrames] = useState<FrameSample[]>([])
   const chatEndRef = useRef<HTMLDivElement>(null)
   const kb = useAIKnowledgeBase(domain)
@@ -86,13 +72,6 @@ export function AIFeedbackPanel({
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
-  }
-
-  function handleSaveKey() {
-    const key = draftKey.trim()
-    if (key) onSaveApiKey(key)
-    // Don't wipe the stored key if the draft is empty (e.g. after a provider switch)
-    setShowSettings(false)
   }
 
   async function handleVisualAnalysis() {
@@ -127,27 +106,6 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
       <div style={s.header}>
         <span style={s.title}>AI Coach</span>
         <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-          {/* Role toggle */}
-          <div style={{ display: 'flex', borderRadius: 5, overflow: 'hidden', border: '1px solid #bae6fd' }}>
-            {(['professor', 'student'] as UserRole[]).map(r => (
-              <button
-                key={r}
-                onClick={() => onSaveRole(r)}
-                style={{
-                  background: role === r ? (r === 'professor' ? '#7c3aed' : '#0369a1') : '#f1f5f9',
-                  border: 'none',
-                  color: role === r ? '#fff' : '#64748b',
-                  cursor: 'pointer',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: '4px 9px',
-                  textTransform: 'capitalize'
-                }}
-              >
-                {r === 'professor' ? 'Prof' : 'Student'}
-              </button>
-            ))}
-          </div>
           {hasVideo && (
             <button
               onClick={handleVisualAnalysis}
@@ -165,9 +123,6 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
           <button onClick={() => setShowKB(v => !v)} style={hdrBtn(showKB ? '#1e3a5f' : '#1e293b')} title="Knowledge base">
             📚
           </button>
-          <button onClick={() => setShowSettings(v => !v)} style={hdrBtn(showSettings ? '#1e3a5f' : '#1e293b')} title="Settings">
-            ⚙
-          </button>
           {!isEmpty && (
             <button onClick={onClear} style={hdrBtn('#1e293b')} title="Clear chat">
               ↺
@@ -175,119 +130,6 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
           )}
         </div>
       </div>
-
-      {/* ── Settings ───────────────────────────────────────────── */}
-      {showSettings && (
-        <div style={s.infoBox}>
-          {/* Provider selector */}
-          <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
-            AI Provider
-          </div>
-          <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-            {(Object.keys(PROVIDER_CONFIG) as AIProvider[]).map(p => {
-              const cfg = PROVIDER_CONFIG[p]
-              const active = provider === p
-              return (
-                <button
-                  key={p}
-                  onClick={() => { onSaveProvider(p) }}
-                  style={{
-                    flex: 1,
-                    background: active ? '#eff6ff' : '#f8fafc',
-                    border: `1.5px solid ${active ? '#3b82f6' : '#e2e8f0'}`,
-                    borderRadius: 7,
-                    color: active ? '#1d4ed8' : '#475569',
-                    cursor: 'pointer',
-                    fontSize: 10,
-                    fontWeight: active ? 700 : 500,
-                    padding: '5px 4px',
-                    textAlign: 'center',
-                    lineHeight: 1.3
-                  }}
-                >
-                  <div style={{ fontSize: 14 }}>{cfg.icon}</div>
-                  <div>{p === 'anthropic' ? 'Claude' : p === 'openai' ? 'GPT-4o' : 'Gemini'}</div>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Knowledge scope slider */}
-          <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4, marginTop: 2 }}>
-            Knowledge Scope
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <input
-              type="range"
-              min={1}
-              max={5}
-              step={1}
-              value={knowledgeScope}
-              onChange={e => onSaveKnowledgeScope(parseInt(e.target.value, 10) as KnowledgeScope)}
-              style={{ width: '100%', cursor: 'pointer', accentColor: '#3b82f6' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-              {([1, 2, 3, 4, 5] as KnowledgeScope[]).map(n => (
-                <span
-                  key={n}
-                  style={{
-                    fontSize: 9,
-                    color: knowledgeScope === n ? '#1d4ed8' : '#94a3b8',
-                    fontWeight: knowledgeScope === n ? 700 : 400,
-                    cursor: 'pointer',
-                    textAlign: 'center',
-                    width: '20%'
-                  }}
-                  onClick={() => onSaveKnowledgeScope(n)}
-                >
-                  {SCOPE_LABELS[n].icon}
-                </span>
-              ))}
-            </div>
-            <div style={{
-              marginTop: 4,
-              background: '#eff6ff',
-              border: '1px solid #bfdbfe',
-              borderRadius: 5,
-              padding: '4px 7px',
-              fontSize: 10,
-              color: '#1e40af',
-              lineHeight: 1.4
-            }}>
-              <strong>{SCOPE_LABELS[knowledgeScope].icon} {SCOPE_LABELS[knowledgeScope].label}</strong> — {SCOPE_LABELS[knowledgeScope].description}
-            </div>
-          </div>
-
-          {/* API key input */}
-          <div style={{ color: '#64748b', fontSize: 10, marginBottom: 5 }}>
-            {PROVIDER_CONFIG[provider].label} API Key — stored only on this device
-          </div>
-          <div style={{ display: 'flex', gap: 5 }}>
-            <input
-              type={showKey ? 'text' : 'password'}
-              value={draftKey}
-              onChange={e => setDraftKey(e.target.value)}
-              placeholder={PROVIDER_CONFIG[provider].placeholder}
-              style={s.keyInput}
-              onKeyDown={e => e.key === 'Enter' && handleSaveKey()}
-              onBlur={handleSaveKey}
-            />
-            <button onClick={() => setShowKey(v => !v)} style={smBtn('#1e293b')}>{showKey ? '🙈' : '👁'}</button>
-            <button onClick={handleSaveKey} style={smBtn('#3b82f6')}>Save</button>
-          </div>
-          <div style={{ color: '#64748b', fontSize: 10, marginTop: 5 }}>
-            Get a key:{' '}
-            <a
-              href={PROVIDER_CONFIG[provider].docsUrl}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: '#0284c7', textDecoration: 'underline', cursor: 'pointer' }}
-            >
-              {PROVIDER_CONFIG[provider].docsLabel}
-            </a>
-          </div>
-        </div>
-      )}
 
       {/* ── Knowledge base ─────────────────────────────────────── */}
       {showKB && (
@@ -343,7 +185,7 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
 
       {/* ── Chat area ──────────────────────────────────────────── */}
       <div style={s.chatArea}>
-        {isEmpty && (apiKey || !showSettings) && (
+        {isEmpty && (
           <EmptyState
             role={role}
             domain={domain}
