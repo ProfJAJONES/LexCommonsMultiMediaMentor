@@ -1,4 +1,4 @@
-import { IpcMain, Dialog, shell, desktopCapturer, app, BrowserWindow } from 'electron'
+import { IpcMain, Dialog, shell, desktopCapturer, app, BrowserWindow, systemPreferences } from 'electron'
 import { readFileSync, writeFileSync, unlinkSync } from 'fs'
 import { join, basename, extname, resolve, normalize } from 'path'
 import { homedir } from 'os'
@@ -505,5 +505,13 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
     const buf = await Packer.toBuffer(doc)
     writeFileSync(result.filePath, buf)
     return result.filePath
+  })
+
+  ipcMain.handle('permissions:getMediaStatus', () => {
+    if (process.platform !== 'darwin') return { camera: 'granted', microphone: 'granted' }
+    return {
+      camera: systemPreferences.getMediaAccessStatus('camera'),
+      microphone: systemPreferences.getMediaAccessStatus('microphone')
+    }
   })
 }

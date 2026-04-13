@@ -42,6 +42,7 @@ declare global {
       saveReport: (html: string) => Promise<string | null>
       installBlackHole: () => Promise<string | null>
       openAudioMidiSetup: () => Promise<string | null>
+      getMediaPermissions: () => Promise<{ camera: string; microphone: string }>
     }
   }
 }
@@ -261,13 +262,24 @@ export default function App() {
       const devs = await navigator.mediaDevices.enumerateDevices()
       setMicDevices(devs.filter(d => d.kind === 'audioinput'))
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      const isPermission = msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('notallowed')
-      setWebcamError(
-        isPermission
-          ? 'Camera/microphone access denied. Open System Settings → Privacy & Security → Camera (and Microphone) and allow this app.'
-          : `Could not start webcam: ${msg}`
-      )
+      // Check actual macOS permission status so the message is accurate
+      const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
+      const denied = perms.camera === 'denied' || perms.microphone === 'denied'
+      const notDetermined = perms.camera === 'not-determined' || perms.microphone === 'not-determined'
+      const granted = perms.camera === 'granted' && perms.microphone === 'granted'
+
+      if (denied) {
+        setWebcamError('Camera or microphone access is blocked. Open System Settings → Privacy & Security → Camera (and Microphone) and enable this app, then restart it.')
+      } else if (granted) {
+        // Permission is granted but getUserMedia still failed — device busy or needs restart
+        const msg = e instanceof Error ? e.message : String(e)
+        setWebcamError(`Camera access is allowed but the device couldn't be opened — it may be in use by another app. Try closing other apps using the camera, or restart this app. (${msg})`)
+      } else if (notDetermined) {
+        setWebcamError('Camera/microphone permission has not been granted yet. Restart the app — it will prompt you on launch.')
+      } else {
+        const msg = e instanceof Error ? e.message : String(e)
+        setWebcamError(`Could not start webcam: ${msg}`)
+      }
     } finally {
       mediaLoadingRef.current = false
     }

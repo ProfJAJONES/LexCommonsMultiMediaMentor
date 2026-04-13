@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld('api', {
 
   openAudioMidiSetup: (): Promise<string | null> =>
     ipcRenderer.invoke('system:openAudioMidiSetup'),
+
+  getMediaPermissions: (): Promise<{ camera: string; microphone: string }> =>
+    ipcRenderer.invoke('permissions:getMediaStatus'),
 })
 
 export type CaptureSource = {
