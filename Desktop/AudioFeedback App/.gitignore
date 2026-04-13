@@ -1,0 +1,6 @@
+node_modules/
+dist-app/
+out/
+.DS_Store
+*.dmg
+*.blockmap

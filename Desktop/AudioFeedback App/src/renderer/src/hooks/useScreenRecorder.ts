@@ -1,0 +1,168 @@
+import { useState, useRef, useCallback } from 'react'
+
+export type CaptureSource = {
+  id: string
+  name: string
+  thumbnail: string
+  appIcon: string | null
+}
+
+export type RecorderState = 'idle' | 'picking' | 'recording' | 'paused' | 'saving'
+
+export function useScreenRecorder() {
+  const [recorderState, setRecorderState] = useState<RecorderState>('idle')
+  const [sources, setSources] = useState<CaptureSource[]>([])
+  const [elapsedSec, setElapsedSec] = useState(0)
+  const [hasAudio, setHasAudio] = useState(false)
+  const [savedPath, setSavedPathRaw] = useState<string | null>(null)
+  const [savedAsFallback, setSavedAsFallback] = useState(false)
+
+  function setSavedPath(path: string | null, fallback = false) {
+    setSavedPathRaw(path)
+    setSavedAsFallback(fallback)
+  }
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const displayStreamRef = useRef<MediaStream | null>(null)
+  const micStreamRef = useRef<MediaStream | null>(null)
+
+  const openPicker = useCallback(async () => {
+    setRecorderState('picking')
+    const list = await window.api.getCaptureSources()
+    setSources(list)
+  }, [])
+
+  const cancelPicker = useCallback(() => {
+    setRecorderState('idle')
+    setSources([])
+  }, [])
+
+  const startRecording = useCallback(async (sourceId: string, withMic: boolean) => {
+    setSources([])
+    setRecorderState('recording')
+    setElapsedSec(0)
+    setHasAudio(false)
+
+    await window.api.prepareCapture(sourceId)
+
+    // Capture screen video (no system audio on macOS without virtual driver)
+    const displayStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: false
+    })
+    displayStreamRef.current = displayStream
+
+    // Build the combined stream: video from screen + optional mic audio
+    const combined = new MediaStream()
+    displayStream.getVideoTracks().forEach(t => combined.addTrack(t))
+
+    if (withMic) {
+      try {
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        micStream.getAudioTracks().forEach(t => combined.addTrack(t))
+        micStreamRef.current = micStream
+        setHasAudio(true)
+      } catch {
+        // Mic denied — record video-only, user will be informed via hasAudio flag
+      }
+    }
+
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+      ? 'video/webm;codecs=vp9,opus'
+      : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+      ? 'video/webm;codecs=vp8,opus'
+      : 'video/webm'
+
+    const recorder = new MediaRecorder(combined, { mimeType })
+    chunksRef.current = []
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+    recorder.start(500)
+    mediaRecorderRef.current = recorder
+
+    timerRef.current = setInterval(() => setElapsedSec(s => s + 1), 1000)
+
+    // Auto-stop if the user closes the OS share bar
+    displayStream.getVideoTracks()[0].onended = () => stopRecording()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pauseRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current
+    if (!recorder || recorder.state !== 'recording') return
+    recorder.pause()
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+    setRecorderState('paused')
+  }, [])
+
+  const resumeRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current
+    if (!recorder || recorder.state !== 'paused') return
+    recorder.resume()
+    timerRef.current = setInterval(() => setElapsedSec(s => s + 1), 1000)
+    setRecorderState('recording')
+  }, [])
+
+  const stopRecording = useCallback(async () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+
+    const recorder = mediaRecorderRef.current
+    if (!recorder || recorder.state === 'inactive') return
+
+    setRecorderState('saving')
+
+    if (recorder.state === 'paused') recorder.resume()
+
+    await new Promise<void>(resolve => {
+      recorder.onstop = () => resolve()
+      recorder.stop()
+    })
+
+    // Stop all tracks
+    displayStreamRef.current?.getTracks().forEach(t => t.stop())
+    micStreamRef.current?.getTracks().forEach(t => t.stop())
+    displayStreamRef.current = null
+    micStreamRef.current = null
+
+    const blob = new Blob(chunksRef.current, { type: 'video/webm' })
+    const uint8 = new Uint8Array(await blob.arrayBuffer())
+    const name = `screen-recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`
+
+    let outPath: string | null = null
+    let isFallback = false
+    try {
+      const result = await window.api.saveRecording(uint8, name)
+      if (result && typeof result === 'object' && 'fallback' in result) {
+        outPath = result.webmPath
+        isFallback = true
+      } else {
+        outPath = result as string | null
+      }
+    } catch {
+      // Dialog closed or unexpected error — reset state below
+    } finally {
+      chunksRef.current = []
+      mediaRecorderRef.current = null
+      setRecorderState('idle')
+      setElapsedSec(0)
+      setHasAudio(false)
+    }
+    if (outPath) setSavedPath(outPath, isFallback)
+  }, [])
+
+  return {
+    recorderState,
+    sources,
+    elapsedSec,
+    hasAudio,
+    savedPath,
+    savedAsFallback,
+    clearSavedPath: () => setSavedPath(null),
+    openPicker,
+    cancelPicker,
+    startRecording,
+    pauseRecording,
+    resumeRecording,
+    stopRecording
+  }
+}
