@@ -155,10 +155,17 @@ export function useAIFeedback() {
     streamingText: '',
     error: null
   })
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('mm_ai_key') ?? localStorage.getItem('anthropic_api_key') ?? '')
   const [provider, setProvider] = useState<AIProvider>(() =>
     (localStorage.getItem('mm_ai_provider') as AIProvider) ?? 'anthropic'
   )
+  const [apiKey, setApiKey] = useState(() => {
+    const p = (localStorage.getItem('mm_ai_provider') as AIProvider) ?? 'anthropic'
+    // Per-provider keys take precedence; fall back to legacy single-slot key (migration)
+    return localStorage.getItem(`mm_ai_key_${p}`)
+      ?? localStorage.getItem('mm_ai_key')
+      ?? localStorage.getItem('anthropic_api_key')
+      ?? ''
+  })
   const [role, setRole] = useState<UserRole>(() =>
     (localStorage.getItem('mm_ai_role') as UserRole) ?? 'professor'
   )
@@ -170,13 +177,16 @@ export function useAIFeedback() {
 
   const saveApiKey = useCallback((key: string) => {
     setApiKey(key)
-    if (key) localStorage.setItem('mm_ai_key', key)
-    else localStorage.removeItem('mm_ai_key')
-  }, [])
+    if (key) localStorage.setItem(`mm_ai_key_${provider}`, key)
+    else localStorage.removeItem(`mm_ai_key_${provider}`)
+  }, [provider])
 
   const saveProvider = useCallback((p: AIProvider) => {
     setProvider(p)
     localStorage.setItem('mm_ai_provider', p)
+    // Switch active key to whatever is stored for the new provider
+    const storedKey = localStorage.getItem(`mm_ai_key_${p}`) ?? ''
+    setApiKey(storedKey)
   }, [])
 
   const saveRole = useCallback((r: UserRole) => {

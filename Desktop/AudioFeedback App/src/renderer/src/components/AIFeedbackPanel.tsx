@@ -59,6 +59,11 @@ export function AIFeedbackPanel({
   const [showKB, setShowKB] = useState(false)
   const [draftKey, setDraftKey] = useState(apiKey)
   const [showKey, setShowKey] = useState(false)
+
+  // Keep draft in sync when the stored key changes (e.g. provider switch)
+  useEffect(() => {
+    setDraftKey(apiKey)
+  }, [apiKey])
   const [frames, setFrames] = useState<FrameSample[]>([])
   const chatEndRef = useRef<HTMLDivElement>(null)
   const kb = useAIKnowledgeBase(domain)
@@ -84,7 +89,9 @@ export function AIFeedbackPanel({
   }
 
   function handleSaveKey() {
-    onSaveApiKey(draftKey.trim())
+    const key = draftKey.trim()
+    if (key) onSaveApiKey(key)
+    // Don't wipe the stored key if the draft is empty (e.g. after a provider switch)
     setShowSettings(false)
   }
 
@@ -183,7 +190,7 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
               return (
                 <button
                   key={p}
-                  onClick={() => { onSaveProvider(p); setDraftKey('') }}
+                  onClick={() => { onSaveProvider(p) }}
                   style={{
                     flex: 1,
                     background: active ? '#eff6ff' : '#f8fafc',
@@ -263,6 +270,7 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
               placeholder={PROVIDER_CONFIG[provider].placeholder}
               style={s.keyInput}
               onKeyDown={e => e.key === 'Enter' && handleSaveKey()}
+              onBlur={handleSaveKey}
             />
             <button onClick={() => setShowKey(v => !v)} style={smBtn('#1e293b')}>{showKey ? '🙈' : '👁'}</button>
             <button onClick={handleSaveKey} style={smBtn('#3b82f6')}>Save</button>

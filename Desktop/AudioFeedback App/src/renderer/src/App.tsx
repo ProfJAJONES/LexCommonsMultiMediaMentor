@@ -82,19 +82,25 @@ export default function App() {
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedMicId, setSelectedMicId] = useState<string>('')
   const [micError, setMicError] = useState<string | null>(null)
+  const [webcamError, setWebcamError] = useState<string | null>(null)
   const [showAudioPicker, setShowAudioPicker] = useState(false)
   const audioPickerBtnRef = useRef<HTMLButtonElement>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLDivElement>(null)
 
-  // Fetch available audio input devices on mount (labels require permission first)
-  useEffect(() => {
+  // Fetch available audio input devices on mount and whenever permissions change
+  function refreshMicDevices() {
     navigator.mediaDevices.enumerateDevices().then(devs => {
       const mics = devs.filter(d => d.kind === 'audioinput')
       setMicDevices(mics)
-      if (mics.length > 0) setSelectedMicId(mics[0].deviceId)
-    }).catch(() => { /* permission not yet granted */ })
-  }, [])
+      if (mics.length > 0 && !selectedMicId) setSelectedMicId(mics[0].deviceId)
+    }).catch(() => {})
+  }
+  useEffect(() => {
+    refreshMicDevices()
+    navigator.mediaDevices.addEventListener('devicechange', refreshMicDevices)
+    return () => navigator.mediaDevices.removeEventListener('devicechange', refreshMicDevices)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close audio picker when clicking outside
   useEffect(() => {
@@ -228,6 +234,7 @@ export default function App() {
   async function handleWebcam() {
     if (mediaLoadingRef.current) return
     mediaLoadingRef.current = true
+    setWebcamError(null)
     stopWebcam()  // stops mic/blackhole/webcam streams
     resetAudio()
     setAudioSource('video')
@@ -250,8 +257,17 @@ export default function App() {
       setMediaMode('webcam')
       // Pass the audio stream directly — don't wait for React state to propagate
       startAudio(audioStream ?? undefined)
-    } catch {
-      setMicError('Webcam access denied. Check permissions in System Settings.')
+      // Permission now granted — refresh device list so labels are populated
+      const devs = await navigator.mediaDevices.enumerateDevices()
+      setMicDevices(devs.filter(d => d.kind === 'audioinput'))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      const isPermission = msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('notallowed')
+      setWebcamError(
+        isPermission
+          ? 'Camera/microphone access denied. Open System Settings → Privacy & Security → Camera (and Microphone) and allow this app.'
+          : `Could not start webcam: ${msg}`
+      )
     } finally {
       mediaLoadingRef.current = false
     }
@@ -799,6 +815,9 @@ ${ann.comments.length === 0
           >
             {mediaMode === 'webcam' ? '● Live' : '📷 Webcam'}
           </button>
+          {webcamError && (
+            <span style={{ color: '#dc2626', fontSize: 11, maxWidth: 260 }}>{webcamError}</span>
+          )}
           {fileName && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={styles.fileName}>{fileName}</span>
@@ -905,12 +924,12 @@ ${ann.comments.length === 0
                       />
                     )}
 
-                    {micError && (
-                      <div style={{ fontSize: 11, color: '#dc2626', padding: '6px 14px' }}>{micError}</div>
-                    )}
                   </div>
                 )}
               </div>
+              {micError && (
+                <span style={{ color: '#dc2626', fontSize: 11, alignSelf: 'center' }}>{micError}</span>
+              )}
             </div>
           )}
           {(screen.recorderState === 'recording' || screen.recorderState === 'paused' || screen.recorderState === 'saving') && (
@@ -1078,6 +1097,11 @@ ${ann.comments.length === 0
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 10 }}>
                 Supports MP4, MOV, WebM, MKV, MP3, WAV, M4A
               </div>
+              {webcamError && (
+                <div style={{ marginTop: 12, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 7, color: '#dc2626', fontSize: 12, padding: '8px 12px', maxWidth: 420, lineHeight: 1.5 }}>
+                  {webcamError}
+                </div>
+              )}
             </div>
           )}
         </div>
