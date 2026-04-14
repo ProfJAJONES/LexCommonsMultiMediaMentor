@@ -12,31 +12,34 @@ export interface PitchGraphHandle {
   toDataURL: () => string | null
 }
 
-// Full operatic range: C2 (deep bass) → C6 (soprano high C)
-const MIN_HZ = 65    // C2
-const MAX_HZ = 1047  // C6
+// Full 88-key piano range: A0 → C8
+const MIN_HZ = 27.5   // A0
+const MAX_HZ = 4186   // C8
 
-const GUTTER_L = 52  // wider — accommodates clef symbol + partial staff
-const GUTTER_R = 48  // wider — Hz labels go up to 4 digits
+const GUTTER_L = 54  // accommodates clef symbol + partial staff
+const GUTTER_R = 52  // Hz labels go up to 7 chars ("C8 4186")
 
 // Musical reference points used for grid lines & right-side labels
 const GRID_NOTES = [
-  { hz: 65,   label: 'C2'  },
-  { hz: 130,  label: 'C3'  },
-  { hz: 262,  label: 'C4'  },  // Middle C
-  { hz: 440,  label: 'A4'  },  // Concert A
-  { hz: 523,  label: 'C5'  },
-  { hz: 880,  label: 'A5'  },
-  { hz: 1047, label: 'C6'  },
+  { hz: 27.5,   label: 'A0'  },
+  { hz: 65.4,   label: 'C2'  },
+  { hz: 130.8,  label: 'C3'  },
+  { hz: 261.6,  label: 'C4'  },  // Middle C
+  { hz: 440.0,  label: 'A4'  },  // Concert A
+  { hz: 1046.5, label: 'C6'  },
+  { hz: 2093.0, label: 'C7'  },
+  { hz: 4186.0, label: 'C8'  },
 ]
 
-// Vocal register bands
+// Register bands spanning full piano range
 const BANDS = [
-  { lo: 65,   hi: 130,  color: 'rgba(139,92,246,0.08)',  label: 'Bass'      },
-  { lo: 130,  hi: 220,  color: 'rgba(52,211,153,0.08)',  label: 'Baritone'  },
-  { lo: 220,  hi: 350,  color: 'rgba(56,189,248,0.08)',  label: 'Tenor'     },
-  { lo: 350,  hi: 600,  color: 'rgba(251,191,36,0.08)',  label: 'Alto/Mezzo'},
-  { lo: 600,  hi: 1047, color: 'rgba(248,113,113,0.08)', label: 'Soprano'   },
+  { lo: 27.5,   hi: 65.4,   color: 'rgba(99,102,241,0.07)',  label: 'Sub-bass'  },
+  { lo: 65.4,   hi: 130.8,  color: 'rgba(139,92,246,0.08)',  label: 'Bass'      },
+  { lo: 130.8,  hi: 261.6,  color: 'rgba(52,211,153,0.08)',  label: 'Baritone'  },
+  { lo: 261.6,  hi: 523.3,  color: 'rgba(56,189,248,0.08)',  label: 'Tenor'     },
+  { lo: 523.3,  hi: 1046.5, color: 'rgba(251,191,36,0.08)',  label: 'Alto/Mezzo'},
+  { lo: 1046.5, hi: 2093.0, color: 'rgba(248,113,113,0.08)', label: 'Soprano'   },
+  { lo: 2093.0, hi: 4186.0, color: 'rgba(244,114,182,0.07)', label: 'High'      },
 ]
 
 function pitchColor(hz: number): string {
@@ -133,25 +136,25 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
     ctx.fillStyle = 'rgba(251,191,36,0.18)'
     ctx.fillRect(3, a4Top, staffRight - 3, a4Bot - a4Top)
 
-    // ── Shared clef font size — match bass clef (which is already accurate) ──
-    const bassStaffPx = hzToY(98.00, height) - hzToY(220.00, height)
-    const clefFontPx  = Math.max(18, Math.round(bassStaffPx * 0.95))
     ctx.fillStyle = '#64748b'
     ctx.textAlign = 'center'
 
     // ── Treble clef 𝄞 ──────────────────────────────────────────────────────
-    // The bottom circle of the treble clef wraps around the G4 line (392 Hz).
-    // With textBaseline='alphabetic' in Georgia the curl sits just above the
-    // baseline, so anchoring the baseline at G4 + a small downward nudge
-    // (≈ 18% of one staff space) centres the circle on the G4 line.
-    const trebleSpacePx = (hzToY(329.63, height) - hzToY(392.00, height)) // one space: E4→G4
-    ctx.font = `${clefFontPx}px Georgia, "Times New Roman", serif`
+    // Size the glyph to span the treble staff (E4–F5), capped so it fits the gutter.
+    // Position: with textBaseline='alphabetic' in Georgia, the G4 oval sits roughly
+    // 28% of the font-size above the baseline, so push the baseline DOWN by that
+    // amount from G4's y-position — this centres the oval on the G4 staff line.
+    const trebleStaffPx = Math.abs(hzToY(329.63, height) - hzToY(698.46, height))
+    const trebleClefFontPx = Math.min(70, Math.max(22, Math.round(trebleStaffPx * 3.0)))
+    ctx.font = `${trebleClefFontPx}px Georgia, "Times New Roman", serif`
     ctx.textBaseline = 'alphabetic'
-    ctx.fillText('\u{1D11E}', clefCx, hzToY(392.00, height) + trebleSpacePx * 0.18)
+    ctx.fillText('\u{1D11E}', clefCx, hzToY(392.00, height) + trebleClefFontPx * 0.28)
 
     // ── Bass clef 𝄢 ────────────────────────────────────────────────────────
     // Top of glyph aligns near the top staff line (A3); nub lands on F3 (174.61 Hz)
-    ctx.font = `${clefFontPx}px Georgia, "Times New Roman", serif`
+    const bassStaffPx = Math.abs(hzToY(98.00, height) - hzToY(220.00, height))
+    const bassClefFontPx = Math.max(18, Math.round(bassStaffPx * 0.95))
+    ctx.font = `${bassClefFontPx}px Georgia, "Times New Roman", serif`
     ctx.textBaseline = 'top'
     ctx.fillText('\u{1D122}', clefCx, hzToY(220.00, height))
 

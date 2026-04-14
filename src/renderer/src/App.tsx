@@ -1197,7 +1197,7 @@ ${ann.comments.length === 0
                 autoPlay
                 muted
                 playsInline
-                style={{ width: '100%', maxHeight: 480, display: 'block', borderRadius: 8 }}
+                style={{ width: '100%', maxHeight: 540, display: 'block', borderRadius: 8 }}
               />
               <div style={{
                 position: 'absolute',
@@ -1257,7 +1257,7 @@ ${ann.comments.length === 0
                 samples={audio.pitchHistory}
                 currentPitch={audio.currentPitch}
                 width={graphWidth}
-                height={200}
+                height={260}
               />
               <PianoKeyboard
                 hz={audio.currentPitch}

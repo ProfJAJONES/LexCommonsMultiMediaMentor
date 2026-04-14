@@ -30,8 +30,8 @@ function midiToNote(midi: number): { name: string; octave: number; index: number
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const START_OCTAVE = 2   // C2 ≈ 65 Hz
-const NUM_OCTAVES  = 4   // C2 → B5 covers the full speech range
+const START_OCTAVE = 1   // C1 ≈ 33 Hz
+const NUM_OCTAVES  = 7   // C1 → B7 covers all 88 piano keys (A0–C8)
 
 const KW  = 20   // white key width  (px in SVG units)
 const KH  = 64   // white key height
@@ -132,13 +132,13 @@ export function PianoKeyboard({ hz, width = TOT }: Props) {
         </span>
       </div>
 
-      {/* SVG keyboard — scales to fit the given width */}
+      {/* SVG keyboard — natural size, scrolls horizontally */}
       <div style={{ overflowX: 'auto' }}>
         <svg
           viewBox={`0 0 ${TOT} ${KH + 16}`}
-          width={width}
-          height={Math.round((KH + 16) * (width / TOT))}
-          style={{ display: 'block' }}
+          width={TOT}
+          height={KH + 16}
+          style={{ display: 'block', minWidth: TOT }}
         >
           {whites}
           {labels}
