@@ -44,17 +44,22 @@ function createWindow(): void {
     callback(allowed.includes(permission))
   })
 
-  // Grant the source the user already picked — no OS picker shown
+  // If a source was pre-selected via our custom picker, use it.
+  // Otherwise fall through to the native macOS screen picker.
   win.webContents.session.setDisplayMediaRequestHandler(async (_request, callback) => {
     const sourceId = pendingCaptureSourceId
     pendingCaptureSourceId = null
-    if (!sourceId) { callback({}); return }
+    if (!sourceId) {
+      // No pre-selected source — let macOS show its native screen picker
+      callback({ video: true } as Parameters<typeof callback>[0])
+      return
+    }
     const sources = await desktopCapturer.getSources({
       types: ['window', 'screen'],
       thumbnailSize: { width: 1, height: 1 }
     })
     const source = sources.find(s => s.id === sourceId)
-    callback(source ? { video: source, audio: 'loopback' } : {})
+    callback(source ? { video: source, audio: 'loopback' } : { video: true } as Parameters<typeof callback>[0])
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
