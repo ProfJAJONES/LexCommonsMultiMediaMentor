@@ -954,7 +954,12 @@ ${ann.comments.length === 0
 
           {screen.recorderState === 'idle' && !screen.savedPath && (
             <div style={{ display: 'flex', gap: 4 }}>
-              <button onClick={screen.openPicker} style={btnStyle('#7c3aed')}>
+              <button
+                onClick={() => screen.openPicker(
+                  (audioSource === 'mic' || audioSource === 'blackhole') ? selectedMicId : undefined
+                )}
+                style={btnStyle('#7c3aed')}
+              >
                 ⏺ Record Screen
               </button>
               {/* Audio source picker */}
@@ -1054,15 +1059,22 @@ ${ann.comments.length === 0
             </div>
           )}
           {(screen.recorderState === 'recording' || screen.recorderState === 'paused' || screen.recorderState === 'saving') && (
-            <RecordingIndicator
-              elapsedSec={screen.elapsedSec}
-              state={screen.recorderState}
-              hasAudio={screen.hasAudio}
-              videoRef={videoRef}
-              onPause={screen.pauseRecording}
-              onResume={screen.resumeRecording}
-              onStop={screen.stopRecording}
-            />
+            <>
+              <RecordingIndicator
+                elapsedSec={screen.elapsedSec}
+                state={screen.recorderState}
+                hasAudio={screen.hasAudio}
+                videoRef={videoRef}
+                onPause={screen.pauseRecording}
+                onResume={screen.resumeRecording}
+                onStop={screen.stopRecording}
+              />
+              {screen.audioError && (
+                <span style={{ color: '#b45309', fontSize: 11, alignSelf: 'center' }}>
+                  ⚠ {screen.audioError} — recording video only
+                </span>
+              )}
+            </>
           )}
           {screen.savedPath && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: screen.savedAsFallback ? '#fffbeb' : '#f0fdf4', border: `1px solid ${screen.savedAsFallback ? '#fcd34d' : '#86efac'}`, borderRadius: 6, padding: '5px 10px' }}>

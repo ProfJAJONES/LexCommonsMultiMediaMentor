@@ -14,6 +14,7 @@ export function useScreenRecorder() {
   const [sources] = useState<CaptureSource[]>([])
   const [elapsedSec, setElapsedSec] = useState(0)
   const [hasAudio, setHasAudio] = useState(false)
+  const [audioError, setAudioError] = useState<string | null>(null)
   const [savedPath, setSavedPathRaw] = useState<string | null>(null)
   const [savedAsFallback, setSavedAsFallback] = useState(false)
 
@@ -31,8 +32,13 @@ export function useScreenRecorder() {
   // On macOS 15, desktopCapturer.getSources() returns empty due to Sequoia permission
   // model changes. Use getDisplayMedia() directly — it shows the native macOS screen
   // picker which handles permissions automatically.
-  const openPicker = useCallback(async (withMic = true) => {
+  //
+  // micDeviceId: pass the currently-selected audio device ID so the recording uses
+  // the same source the user has chosen for analysis (mic, BlackHole, etc.).
+  // Pass undefined to fall back to the system default microphone.
+  const openPicker = useCallback(async (micDeviceId?: string) => {
     setRecorderState('picking')
+    setAudioError(null)
     try {
       // Native macOS screen picker — no source pre-selection needed
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
@@ -48,15 +54,20 @@ export function useScreenRecorder() {
       const combined = new MediaStream()
       displayStream.getVideoTracks().forEach(t => combined.addTrack(t))
 
-      if (withMic) {
-        try {
-          const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      try {
+        const audioConstraint = micDeviceId ? { deviceId: { exact: micDeviceId } } : true
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint, video: false })
+        if (micStream.getAudioTracks().length > 0) {
           micStream.getAudioTracks().forEach(t => combined.addTrack(t))
           micStreamRef.current = micStream
           setHasAudio(true)
-        } catch {
-          // Mic denied — record video-only
+        } else {
+          setAudioError('Microphone returned no audio tracks')
         }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        setAudioError(`Mic unavailable: ${msg}`)
+        // Continue recording video-only
       }
 
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
@@ -84,8 +95,8 @@ export function useScreenRecorder() {
   }, [])
 
   // Legacy — kept for API compatibility but openPicker now handles the full flow
-  const startRecording = useCallback(async (_sourceId: string, withMic: boolean) => {
-    await openPicker(withMic)
+  const startRecording = useCallback(async (_sourceId: string, _withMic: boolean) => {
+    await openPicker()
   }, [openPicker])
 
   const pauseRecording = useCallback(() => {
@@ -155,6 +166,7 @@ export function useScreenRecorder() {
     sources,
     elapsedSec,
     hasAudio,
+    audioError,
     savedPath,
     savedAsFallback,
     clearSavedPath: () => setSavedPath(null),
