@@ -111,6 +111,16 @@ export default function App() {
     return () => navigator.mediaDevices.removeEventListener('devicechange', refreshMicDevices)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Connect the webcam stream to the video element after it mounts in the DOM.
+  // The <video ref={videoRef}> only exists when mediaMode === 'webcam', so we can't
+  // set srcObject during handleWebcam — the element isn't rendered yet at that point.
+  useEffect(() => {
+    if (mediaMode === 'webcam' && videoRef.current && webcamStreamRef.current) {
+      videoRef.current.srcObject = webcamStreamRef.current
+      videoRef.current.play().catch(() => {})
+    }
+  }, [mediaMode])
+
   // Close audio picker when clicking outside
   useEffect(() => {
     if (!showAudioPicker) return
@@ -254,10 +264,9 @@ export default function App() {
       const audioTracks = stream.getAudioTracks()
       const audioStream = audioTracks.length > 0 ? new MediaStream(audioTracks) : null
       if (audioStream) setWebcamAudioStream(audioStream)
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play().catch(() => {})
-      }
+      // Don't set srcObject here — the webcam <video> element doesn't exist in the DOM
+      // until mediaMode becomes 'webcam' and React re-renders. A useEffect below
+      // connects the stream once the element is mounted.
       setMediaPath(null)
       setFileName('Live Webcam')
       setCurrentTime(0)
