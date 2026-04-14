@@ -25,7 +25,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-        run: npm run dist:mac
+        run: npm run dist:mac -- --publish never
 
       - uses: actions/upload-artifact@v4
         with:
@@ -45,7 +45,7 @@ jobs:
       - run: npm ci --legacy-peer-deps
 
       - name: Build Windows installer
-        run: npm run dist:win
+        run: npm run dist:win -- --publish never
 
       - uses: actions/upload-artifact@v4
         with:
