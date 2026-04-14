@@ -245,26 +245,12 @@ export default function App() {
     if (mediaLoadingRef.current) return
     mediaLoadingRef.current = true
     setWebcamError(null)
-    stopWebcam()  // stops mic/blackhole/webcam streams
+    stopWebcam()
     resetAudio()
     setAudioSource('video')
-
-    // Ask macOS for camera + mic access and wait for the user's answer before
-    // calling getUserMedia — avoids the race where getUserMedia rejects immediately
-    // while the permission prompt is still on screen.
-    const access = await window.api.requestMediaAccess().catch(() => ({ camera: true, microphone: true }))
-    if (!access.camera || !access.microphone) {
-      setWebcamError('Camera or microphone access is blocked. Open System Settings → Privacy & Security → Camera (and Microphone) and enable this app, then restart it.')
-      mediaLoadingRef.current = false
-      return
-    }
-
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       webcamStreamRef.current = stream
-      // Extract audio tracks as a standalone stream for the analyser — using a
-      // MediaStreamAudioSourceNode is more reliable than MediaElementAudioSourceNode
-      // on a live srcObject stream (which can silently drop audio on some Electron builds)
       const audioTracks = stream.getAudioTracks()
       const audioStream = audioTracks.length > 0 ? new MediaStream(audioTracks) : null
       if (audioStream) setWebcamAudioStream(audioStream)
@@ -276,14 +262,22 @@ export default function App() {
       setFileName('Live Webcam')
       setCurrentTime(0)
       setMediaMode('webcam')
-      // Pass the audio stream directly — don't wait for React state to propagate
       startAudio(audioStream ?? undefined)
-      // Permission now granted — refresh device list so labels are populated
       const devs = await navigator.mediaDevices.enumerateDevices()
       setMicDevices(devs.filter(d => d.kind === 'audioinput'))
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setWebcamError(`Could not open camera — the device may be in use by another app. Try closing FaceTime, Zoom, or other camera apps and try again. (${msg})`)
+      // Check TCC status to give an accurate error message
+      const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
+      const denied = perms.camera === 'denied' || perms.microphone === 'denied'
+      const notDetermined = perms.camera === 'not-determined' || perms.microphone === 'not-determined'
+      if (denied) {
+        setWebcamError('Camera or microphone is blocked. Open System Settings → Privacy & Security → Camera (and Microphone), enable this app, then restart it.')
+      } else if (notDetermined) {
+        setWebcamError('Camera access requested — if you see a permission banner at the top of your screen, click Allow, then click Webcam again.')
+      } else {
+        const msg = e instanceof Error ? e.message : String(e)
+        setWebcamError(`Could not open camera — it may be in use by another app. Close FaceTime, Zoom, or other camera apps and try again. (${msg})`)
+      }
     } finally {
       mediaLoadingRef.current = false
     }

@@ -106,12 +106,8 @@ app.whenReady().then(() => {
     })
   })
 
-  // On macOS, proactively request system-level camera and mic access so the
-  // OS permission dialog appears the first time the user clicks Webcam.
-  if (process.platform === 'darwin') {
-    systemPreferences.askForMediaAccess('camera').catch(() => {})
-    systemPreferences.askForMediaAccess('microphone').catch(() => {})
-  }
+  // Camera/mic permissions are requested by getUserMedia in the renderer when
+  // the user clicks the Webcam button — no proactive request needed here.
 
   createWindow()
 
