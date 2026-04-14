@@ -46,6 +46,7 @@ declare global {
       installBlackHole: () => Promise<string | null>
       openAudioMidiSetup: () => Promise<string | null>
       getMediaPermissions: () => Promise<{ camera: string; microphone: string }>
+      requestMediaAccess: () => Promise<{ camera: boolean; microphone: boolean }>
     }
   }
 }
@@ -247,6 +248,17 @@ export default function App() {
     stopWebcam()  // stops mic/blackhole/webcam streams
     resetAudio()
     setAudioSource('video')
+
+    // Ask macOS for camera + mic access and wait for the user's answer before
+    // calling getUserMedia — avoids the race where getUserMedia rejects immediately
+    // while the permission prompt is still on screen.
+    const access = await window.api.requestMediaAccess().catch(() => ({ camera: true, microphone: true }))
+    if (!access.camera || !access.microphone) {
+      setWebcamError('Camera or microphone access is blocked. Open System Settings → Privacy & Security → Camera (and Microphone) and enable this app, then restart it.')
+      mediaLoadingRef.current = false
+      return
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       webcamStreamRef.current = stream
@@ -270,64 +282,8 @@ export default function App() {
       const devs = await navigator.mediaDevices.enumerateDevices()
       setMicDevices(devs.filter(d => d.kind === 'audioinput'))
     } catch (e) {
-      // Check actual macOS permission status so the message is accurate
-      const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
-      const denied = perms.camera === 'denied' || perms.microphone === 'denied'
-      const granted = perms.camera === 'granted' && perms.microphone === 'granted'
-
-      if (granted) {
-        // Permission was just granted (user clicked OK on the prompt) but getUserMedia
-        // rejects immediately on macOS before the grant takes effect — retry once.
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-          webcamStreamRef.current = stream
-          const audioTracks = stream.getAudioTracks()
-          const audioStream = audioTracks.length > 0 ? new MediaStream(audioTracks) : null
-          if (audioStream) setWebcamAudioStream(audioStream)
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream
-            await videoRef.current.play().catch(() => {})
-          }
-          setMediaPath(null)
-          setFileName('Live Webcam')
-          setCurrentTime(0)
-          setMediaMode('webcam')
-          startAudio(audioStream ?? undefined)
-          const devs = await navigator.mediaDevices.enumerateDevices()
-          setMicDevices(devs.filter(d => d.kind === 'audioinput'))
-          return
-        } catch {
-          const msg = e instanceof Error ? e.message : String(e)
-          setWebcamError(`Camera access is allowed but the device couldn't be opened — it may be in use by another app. Try closing other apps using the camera, or restart this app. (${msg})`)
-        }
-      } else if (denied) {
-        setWebcamError('Camera or microphone access is blocked. Open System Settings → Privacy & Security → Camera (and Microphone) and enable this app, then restart it.')
-      } else {
-        // Not-determined or unknown — prompt was shown, user may have just granted it.
-        // Retry once after a short delay to let macOS register the grant.
-        await new Promise(r => setTimeout(r, 800))
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-          webcamStreamRef.current = stream
-          const audioTracks = stream.getAudioTracks()
-          const audioStream = audioTracks.length > 0 ? new MediaStream(audioTracks) : null
-          if (audioStream) setWebcamAudioStream(audioStream)
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream
-            await videoRef.current.play().catch(() => {})
-          }
-          setMediaPath(null)
-          setFileName('Live Webcam')
-          setCurrentTime(0)
-          setMediaMode('webcam')
-          startAudio(audioStream ?? undefined)
-          const devs = await navigator.mediaDevices.enumerateDevices()
-          setMicDevices(devs.filter(d => d.kind === 'audioinput'))
-          return
-        } catch {
-          setWebcamError('Could not start webcam. Please restart the app after granting camera and microphone access in System Settings → Privacy & Security.')
-        }
-      }
+      const msg = e instanceof Error ? e.message : String(e)
+      setWebcamError(`Could not open camera — the device may be in use by another app. Try closing FaceTime, Zoom, or other camera apps and try again. (${msg})`)
     } finally {
       mediaLoadingRef.current = false
     }

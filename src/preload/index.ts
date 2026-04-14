@@ -53,6 +53,9 @@ contextBridge.exposeInMainWorld('api', {
 
   getMediaPermissions: (): Promise<{ camera: string; microphone: string }> =>
     ipcRenderer.invoke('permissions:getMediaStatus'),
+
+  requestMediaAccess: (): Promise<{ camera: boolean; microphone: boolean }> =>
+    ipcRenderer.invoke('permissions:requestMedia'),
 })
 
 export type CaptureSource = {

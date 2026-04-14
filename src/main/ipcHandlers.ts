@@ -514,4 +514,15 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
       microphone: systemPreferences.getMediaAccessStatus('microphone')
     }
   })
+
+  // Explicitly request camera + mic access via macOS native API and wait for the result.
+  // Must be called from the main process — returns true/false for each.
+  ipcMain.handle('permissions:requestMedia', async () => {
+    if (process.platform !== 'darwin') return { camera: true, microphone: true }
+    const [camera, microphone] = await Promise.all([
+      systemPreferences.askForMediaAccess('camera'),
+      systemPreferences.askForMediaAccess('microphone')
+    ])
+    return { camera, microphone }
+  })
 }
