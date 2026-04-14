@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, ipcMain, dialog, protocol, net, desktopCapturer, systemPreferences } from 'electron'
 import { join, resolve, normalize } from 'path'
 import { homedir } from 'os'
+import { autoUpdater } from 'electron-updater'
 import { registerIpcHandlers } from './ipcHandlers'
 
 // Holds the source ID the user selected in the renderer so the
@@ -113,6 +114,35 @@ app.whenReady().then(() => {
   }
 
   createWindow()
+
+  // Check for updates a few seconds after launch (only in production)
+  if (!process.env['ELECTRON_RENDERER_URL']) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(() => {})
+    }, 5000)
+  }
+
+  autoUpdater.on('update-available', (info) => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Available',
+      message: `Version ${info.version} is available.`,
+      detail: 'It will be downloaded in the background and installed when you restart the app.',
+      buttons: ['OK']
+    })
+  })
+
+  autoUpdater.on('update-downloaded', () => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Ready',
+      message: 'Update downloaded.',
+      detail: 'Restart the app to apply the update.',
+      buttons: ['Restart Now', 'Later']
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall()
+    })
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
