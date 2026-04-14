@@ -444,7 +444,7 @@ ${rows}
 
           {noApiKey && (
             <div style={{ color: '#dc2626', fontSize: 11, marginTop: 8, padding: '6px 8px', background: '#fef2f2', borderRadius: 5, border: '1px solid #fca5a5' }}>
-              Add your API key in the AI Coach tab — click ⚙ Settings and paste your key. Press Enter or click Save.
+              Add your API key in ⚙ Settings &amp; AI Keys (bottom of sidebar) — paste your key and it saves automatically.
             </div>
           )}
 

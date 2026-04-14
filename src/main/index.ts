@@ -40,8 +40,13 @@ function createWindow(): void {
     callback(allowed.includes(permission))
   })
 
-  // No setDisplayMediaRequestHandler — let Electron/macOS show the native
-  // screen picker when getDisplayMedia() is called from the renderer.
+  // Electron 30+ requires setDisplayMediaRequestHandler to be registered or
+  // getDisplayMedia() is silently rejected in the renderer.
+  // useSystemPicker: true triggers the native macOS 15 screen picker when
+  // the request is video-only (audio: false), so the handler body is a fallback only.
+  win.webContents.session.setDisplayMediaRequestHandler((_request, callback) => {
+    callback({})
+  }, { useSystemPicker: true })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)

@@ -512,8 +512,9 @@ ${ann.comments.length === 0
 
   return (
     <div style={styles.root}>
-      {/* Source picker modal */}
-      {screen.recorderState === 'picking' && (
+      {/* Source picker modal — only shown when legacy source list is populated
+           (Electron 30+ uses the native macOS picker via getDisplayMedia instead) */}
+      {screen.recorderState === 'picking' && screen.sources.length > 0 && (
         <SourcePicker
           sources={screen.sources}
           onSelect={screen.startRecording}
@@ -1500,20 +1501,22 @@ function btnStyle(bg: string): React.CSSProperties {
   }
 }
 
-// ---- Sidebar API key input (self-contained, auto-saves on blur/Enter) ----
+// ---- Sidebar API key input (saves on every keystroke so no Enter/blur required) ----
 function SidebarKeyInput({ apiKey, provider, onSave }: { apiKey: string; provider: AIProvider; onSave: (k: string) => void }) {
   const [draft, setDraft] = React.useState(apiKey)
   const [show, setShow] = React.useState(false)
   React.useEffect(() => { setDraft(apiKey) }, [apiKey])
-  function save() { if (draft.trim()) onSave(draft.trim()) }
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setDraft(val)
+    onSave(val.trim())
+  }
   return (
     <div style={{ display: 'flex', gap: 5 }}>
       <input
         type={show ? 'text' : 'password'}
         value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={save}
-        onKeyDown={e => e.key === 'Enter' && save()}
+        onChange={handleChange}
         placeholder={PROVIDER_CONFIG[provider].placeholder}
         style={{
           flex: 1, border: '1px solid #e2e8f0', borderRadius: 6,
