@@ -1,12 +1,8 @@
-import { app, BrowserWindow, shell, ipcMain, dialog, protocol, net, desktopCapturer, systemPreferences } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, dialog, protocol, net, systemPreferences } from 'electron'
 import { join, resolve, normalize } from 'path'
 import { homedir } from 'os'
 import { autoUpdater } from 'electron-updater'
 import { registerIpcHandlers } from './ipcHandlers'
-
-// Holds the source ID the user selected in the renderer so the
-// displayMediaRequestHandler can grant it when getDisplayMedia() fires.
-let pendingCaptureSourceId: string | null = null
 
 // Register the custom 'media' protocol before app is ready so it is
 // treated as secure and supports streaming (range requests).
@@ -44,23 +40,8 @@ function createWindow(): void {
     callback(allowed.includes(permission))
   })
 
-  // If a source was pre-selected via our custom picker, use it.
-  // Otherwise fall through to the native macOS screen picker.
-  win.webContents.session.setDisplayMediaRequestHandler(async (_request, callback) => {
-    const sourceId = pendingCaptureSourceId
-    pendingCaptureSourceId = null
-    if (!sourceId) {
-      // No pre-selected source — let macOS show its native screen picker
-      callback({ video: true } as Parameters<typeof callback>[0])
-      return
-    }
-    const sources = await desktopCapturer.getSources({
-      types: ['window', 'screen'],
-      thumbnailSize: { width: 1, height: 1 }
-    })
-    const source = sources.find(s => s.id === sourceId)
-    callback(source ? { video: source, audio: 'loopback' } : { video: true } as Parameters<typeof callback>[0])
-  })
+  // No setDisplayMediaRequestHandler — let Electron/macOS show the native
+  // screen picker when getDisplayMedia() is called from the renderer.
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
@@ -75,11 +56,6 @@ function createWindow(): void {
 }
 
 registerIpcHandlers(ipcMain, dialog)
-
-// Store the user-selected source ID before getDisplayMedia() is called
-ipcMain.handle('desktop:prepareCapture', (_event, sourceId: string) => {
-  pendingCaptureSourceId = sourceId
-})
 
 app.whenReady().then(() => {
   // Serve local files via media:// so the renderer can load them regardless
