@@ -273,20 +273,60 @@ export default function App() {
       // Check actual macOS permission status so the message is accurate
       const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
       const denied = perms.camera === 'denied' || perms.microphone === 'denied'
-      const notDetermined = perms.camera === 'not-determined' || perms.microphone === 'not-determined'
       const granted = perms.camera === 'granted' && perms.microphone === 'granted'
 
-      if (denied) {
+      if (granted) {
+        // Permission was just granted (user clicked OK on the prompt) but getUserMedia
+        // rejects immediately on macOS before the grant takes effect — retry once.
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          webcamStreamRef.current = stream
+          const audioTracks = stream.getAudioTracks()
+          const audioStream = audioTracks.length > 0 ? new MediaStream(audioTracks) : null
+          if (audioStream) setWebcamAudioStream(audioStream)
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream
+            await videoRef.current.play().catch(() => {})
+          }
+          setMediaPath(null)
+          setFileName('Live Webcam')
+          setCurrentTime(0)
+          setMediaMode('webcam')
+          startAudio(audioStream ?? undefined)
+          const devs = await navigator.mediaDevices.enumerateDevices()
+          setMicDevices(devs.filter(d => d.kind === 'audioinput'))
+          return
+        } catch {
+          const msg = e instanceof Error ? e.message : String(e)
+          setWebcamError(`Camera access is allowed but the device couldn't be opened — it may be in use by another app. Try closing other apps using the camera, or restart this app. (${msg})`)
+        }
+      } else if (denied) {
         setWebcamError('Camera or microphone access is blocked. Open System Settings → Privacy & Security → Camera (and Microphone) and enable this app, then restart it.')
-      } else if (granted) {
-        // Permission is granted but getUserMedia still failed — device busy or needs restart
-        const msg = e instanceof Error ? e.message : String(e)
-        setWebcamError(`Camera access is allowed but the device couldn't be opened — it may be in use by another app. Try closing other apps using the camera, or restart this app. (${msg})`)
-      } else if (notDetermined) {
-        setWebcamError('Camera/microphone permission has not been granted yet. Restart the app — it will prompt you on launch.')
       } else {
-        const msg = e instanceof Error ? e.message : String(e)
-        setWebcamError(`Could not start webcam: ${msg}`)
+        // Not-determined or unknown — prompt was shown, user may have just granted it.
+        // Retry once after a short delay to let macOS register the grant.
+        await new Promise(r => setTimeout(r, 800))
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          webcamStreamRef.current = stream
+          const audioTracks = stream.getAudioTracks()
+          const audioStream = audioTracks.length > 0 ? new MediaStream(audioTracks) : null
+          if (audioStream) setWebcamAudioStream(audioStream)
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream
+            await videoRef.current.play().catch(() => {})
+          }
+          setMediaPath(null)
+          setFileName('Live Webcam')
+          setCurrentTime(0)
+          setMediaMode('webcam')
+          startAudio(audioStream ?? undefined)
+          const devs = await navigator.mediaDevices.enumerateDevices()
+          setMicDevices(devs.filter(d => d.kind === 'audioinput'))
+          return
+        } catch {
+          setWebcamError('Could not start webcam. Please restart the app after granting camera and microphone access in System Settings → Privacy & Security.')
+        }
       }
     } finally {
       mediaLoadingRef.current = false
