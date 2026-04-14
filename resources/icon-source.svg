@@ -1,0 +1,24 @@
+<svg viewBox="16 16 168 168" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer octagon ring -->
+  <polygon points="100,30 152,48 174,100 156,152 104,174 52,156 30,104 48,52" fill="none" stroke="#185FA5" stroke-width="3"/>
+  <!-- Filled inner octagon -->
+  <polygon points="100,46 142,60 158,100 144,140 104,156 62,142 46,102 60,62" fill="#185FA5"/>
+  <!-- Light green accent ring -->
+  <polygon points="100,50 139,63 154,100 141,137 104,152 65,139 50,102 63,65" fill="none" stroke="#5DCAA5" stroke-width="1.5" opacity="0.8"/>
+  <!-- Webcam lens -->
+  <circle cx="100" cy="100" r="26" fill="#ffffff" opacity="0.15"/>
+  <circle cx="100" cy="100" r="20" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+  <circle cx="100" cy="100" r="12" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.6"/>
+  <!-- Lens highlight arc — light green -->
+  <path d="M 88 88 A 16 16 0 0 1 104 84" fill="none" stroke="#9FE1CB" stroke-width="2" stroke-linecap="round" opacity="0.95"/>
+  <!-- Play triangle — light green -->
+  <polygon points="116,118 136,128 116,138" fill="#5DCAA5"/>
+  <!-- Mortarboard -->
+  <polygon points="64,62 100,48 136,62 100,76" fill="#ffffff" opacity="0.9"/>
+  <line x1="100" y1="76" x2="100" y2="48" stroke="#ffffff" stroke-width="1.5" opacity="0.7"/>
+  <line x1="136" y1="62" x2="136" y2="78" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <!-- Tassel — light green -->
+  <circle cx="136" cy="82" r="3.5" fill="#5DCAA5"/>
+  <line x1="136" y1="82" x2="136" y2="94" stroke="#5DCAA5" stroke-width="1.8"/>
+  <circle cx="136" cy="96" r="2.5" fill="#5DCAA5"/>
+</svg>
