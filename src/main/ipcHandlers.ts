@@ -516,13 +516,19 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
   })
 
   // Explicitly request camera + mic access via macOS native API and wait for the result.
-  // Must be called from the main process — returns true/false for each.
+  // We call askForMediaAccess to trigger the OS prompt, then read getMediaAccessStatus
+  // after a short delay — the return value of askForMediaAccess can resolve before TCC
+  // fully registers the grant on macOS 13+.
   ipcMain.handle('permissions:requestMedia', async () => {
     if (process.platform !== 'darwin') return { camera: true, microphone: true }
-    const [camera, microphone] = await Promise.all([
+    await Promise.allSettled([
       systemPreferences.askForMediaAccess('camera'),
       systemPreferences.askForMediaAccess('microphone')
     ])
+    // Give TCC a moment to write the grant before we read it back
+    await new Promise(r => setTimeout(r, 500))
+    const camera = systemPreferences.getMediaAccessStatus('camera') === 'granted'
+    const microphone = systemPreferences.getMediaAccessStatus('microphone') === 'granted'
     return { camera, microphone }
   })
 }
