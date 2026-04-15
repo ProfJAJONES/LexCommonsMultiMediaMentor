@@ -99,7 +99,7 @@ export default function App() {
 
   // Resize state for draggable dividers
   const [sidebarWidth, setSidebarWidth] = useState(320)
-  const [videoMaxHeight, setVideoMaxHeight] = useState(400)
+  const [videoAreaHeight, setVideoAreaHeight] = useState(300)
   const [bodyTrackerWidth, setBodyTrackerWidth] = useState(220)
 
   // Fetch available audio input devices on mount and whenever permissions change
@@ -1169,7 +1169,11 @@ ${ann.comments.length === 0
         {/* Video + overlay */}
         <div
           ref={videoWrapRef}
-          style={{ position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden', maxHeight: mediaMode !== 'none' ? videoMaxHeight : undefined }}
+          style={{
+            position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden',
+            flexShrink: 0,
+            height: mediaMode !== 'none' ? videoAreaHeight : undefined
+          }}
           onMouseEnter={handleResizeObserver}
         >
           {mediaMode === 'file' && mediaPath ? (
@@ -1226,7 +1230,7 @@ ${ann.comments.length === 0
                 autoPlay
                 muted
                 playsInline
-                style={{ width: '100%', maxHeight: videoMaxHeight, display: 'block', borderRadius: 8 }}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: 8 }}
               />
               <div style={{
                 position: 'absolute',
@@ -1274,21 +1278,22 @@ ${ann.comments.length === 0
             onMouseDown={(e) => {
               e.preventDefault()
               const startY = e.clientY
-              const startH = videoMaxHeight
-              function onMove(ev: MouseEvent) { setVideoMaxHeight(Math.max(120, Math.min(800, startH + (ev.clientY - startY)))) }
+              const startH = videoAreaHeight
+              function onMove(ev: MouseEvent) { setVideoAreaHeight(Math.max(80, Math.min(700, startH + (ev.clientY - startY)))) }
               function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
               document.addEventListener('mousemove', onMove)
               document.addEventListener('mouseup', onUp)
             }}
-            style={{ height: 8, cursor: 'row-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: -6, zIndex: 5, position: 'relative' }}
+            style={{ height: 10, cursor: 'row-resize', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             title="Drag to resize video area"
           >
             <div style={{ width: 48, height: 3, background: '#bae6fd', borderRadius: 2 }} />
           </div>
         )}
 
-        {/* Graphs — file mode and webcam mode */}
+        {/* Graphs — file mode and webcam mode — scrollable, takes remaining height */}
         {(mediaMode === 'file' && mediaPath || mediaMode === 'webcam') && (
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingBottom: 12 }}>
           <div style={styles.graphs}>
             {/* Audio source indicator */}
             <AudioSourceBar
@@ -1342,6 +1347,7 @@ ${ann.comments.length === 0
               width={graphWidth}
               height={80}
             />
+          </div>
           </div>
         )}
       </main>}
@@ -1655,15 +1661,18 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
-    padding: '16px 16px 16px 28px',
-    overflowY: 'auto'
+    gap: 0,
+    padding: '12px 16px 0 28px',
+    overflow: 'hidden',
+    minHeight: 0
   },
   toolbar: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    flexWrap: 'wrap'
+    flexWrap: 'wrap',
+    flexShrink: 0,
+    marginBottom: 8
   },
   fileName: {
     color: '#64748b',
@@ -1678,7 +1687,8 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 320,
+    flex: 1,
+    minHeight: 280,
     cursor: 'pointer',
     color: '#64748b',
     userSelect: 'none'
