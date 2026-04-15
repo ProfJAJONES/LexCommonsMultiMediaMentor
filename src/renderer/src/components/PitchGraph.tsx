@@ -12,34 +12,31 @@ export interface PitchGraphHandle {
   toDataURL: () => string | null
 }
 
-// Full 88-key piano range: A0 → C8
-const MIN_HZ = 27.5   // A0
-const MAX_HZ = 4186   // C8
+// Practical vocal/speech range: C2 → C7
+const MIN_HZ = 65.4   // C2
+const MAX_HZ = 2093.0 // C7
 
 const GUTTER_L = 54  // accommodates clef symbol + partial staff
-const GUTTER_R = 52  // Hz labels go up to 7 chars ("C8 4186")
+const GUTTER_R = 48  // Hz labels up to 6 chars ("C7 2093")
 
 // Musical reference points used for grid lines & right-side labels
 const GRID_NOTES = [
-  { hz: 27.5,   label: 'A0'  },
   { hz: 65.4,   label: 'C2'  },
   { hz: 130.8,  label: 'C3'  },
   { hz: 261.6,  label: 'C4'  },  // Middle C
   { hz: 440.0,  label: 'A4'  },  // Concert A
+  { hz: 523.3,  label: 'C5'  },
   { hz: 1046.5, label: 'C6'  },
   { hz: 2093.0, label: 'C7'  },
-  { hz: 4186.0, label: 'C8'  },
 ]
 
-// Register bands spanning full piano range
+// Register bands C2–C7
 const BANDS = [
-  { lo: 27.5,   hi: 65.4,   color: 'rgba(99,102,241,0.07)',  label: 'Sub-bass'  },
   { lo: 65.4,   hi: 130.8,  color: 'rgba(139,92,246,0.08)',  label: 'Bass'      },
   { lo: 130.8,  hi: 261.6,  color: 'rgba(52,211,153,0.08)',  label: 'Baritone'  },
   { lo: 261.6,  hi: 523.3,  color: 'rgba(56,189,248,0.08)',  label: 'Tenor'     },
   { lo: 523.3,  hi: 1046.5, color: 'rgba(251,191,36,0.08)',  label: 'Alto/Mezzo'},
   { lo: 1046.5, hi: 2093.0, color: 'rgba(248,113,113,0.08)', label: 'Soprano'   },
-  { lo: 2093.0, hi: 4186.0, color: 'rgba(244,114,182,0.07)', label: 'High'      },
 ]
 
 function pitchColor(hz: number): string {

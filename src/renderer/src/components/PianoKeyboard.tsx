@@ -30,8 +30,8 @@ function midiToNote(midi: number): { name: string; octave: number; index: number
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const START_OCTAVE = 1   // C1 ≈ 33 Hz
-const NUM_OCTAVES  = 7   // C1 → B7 covers all 88 piano keys (A0–C8)
+const START_OCTAVE = 2   // C2 ≈ 65 Hz
+const NUM_OCTAVES  = 6   // C2 → B7 (includes C7 label; matches pitch graph range)
 
 const KW  = 20   // white key width  (px in SVG units)
 const KH  = 64   // white key height

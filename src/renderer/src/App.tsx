@@ -977,9 +977,16 @@ ${ann.comments.length === 0
           {screen.recorderState === 'idle' && !screen.savedPath && (
             <div style={{ display: 'flex', gap: 4 }}>
               <button
-                onClick={() => screen.openPicker(
-                  (audioSource === 'mic' || audioSource === 'blackhole') ? selectedMicId : undefined
-                )}
+                onClick={() => {
+                  // Pass the already-open audio stream so we reuse it instead of
+                  // calling getUserMedia again on a device that may already be in use.
+                  const audioStreamForRecording =
+                    mediaMode === 'webcam'   ? (webcamAudioStream ?? undefined) :
+                    audioSource === 'mic'    ? (micStream ?? undefined) :
+                    audioSource === 'blackhole' ? (blackholeStream ?? undefined) :
+                    undefined
+                  screen.openPicker(audioStreamForRecording)
+                }}
                 style={btnStyle('#7c3aed')}
               >
                 ⏺ Record Screen

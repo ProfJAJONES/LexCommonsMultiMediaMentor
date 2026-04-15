@@ -27,16 +27,18 @@ export function useScreenRecorder() {
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const displayStreamRef = useRef<MediaStream | null>(null)
-  const micStreamRef = useRef<MediaStream | null>(null)
+  const micStreamRef = useRef<MediaStream | null>(null)   // stream we opened ourselves (must stop on cleanup)
+  const borrowedAudioRef = useRef<boolean>(false)         // true when reusing app stream (don't stop on cleanup)
 
   // On macOS 15, desktopCapturer.getSources() returns empty due to Sequoia permission
   // model changes. Use getDisplayMedia() directly — it shows the native macOS screen
   // picker which handles permissions automatically.
   //
-  // micDeviceId: pass the currently-selected audio device ID so the recording uses
-  // the same source the user has chosen for analysis (mic, BlackHole, etc.).
-  // Pass undefined to fall back to the system default microphone.
-  const openPicker = useCallback(async (micDeviceId?: string) => {
+  // audioStream: pass the app's currently-active audio stream (webcam mic, selected
+  // mic, or BlackHole) so the recording reuses that stream rather than trying to
+  // open the same device again — which fails when it's already in use.
+  // Pass undefined to fall back to opening the system default microphone.
+  const openPicker = useCallback(async (audioStream?: MediaStream) => {
     setRecorderState('picking')
     setAudioError(null)
     try {
@@ -54,20 +56,28 @@ export function useScreenRecorder() {
       const combined = new MediaStream()
       displayStream.getVideoTracks().forEach(t => combined.addTrack(t))
 
-      try {
-        const audioConstraint = micDeviceId ? { deviceId: { exact: micDeviceId } } : true
-        const micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint, video: false })
-        if (micStream.getAudioTracks().length > 0) {
-          micStream.getAudioTracks().forEach(t => combined.addTrack(t))
-          micStreamRef.current = micStream
-          setHasAudio(true)
-        } else {
-          setAudioError('Microphone returned no audio tracks')
+      // Prefer the already-open audio stream; only call getUserMedia as fallback
+      const existingTracks = audioStream?.getAudioTracks() ?? []
+      if (existingTracks.length > 0 && existingTracks[0].readyState === 'live') {
+        existingTracks.forEach(t => combined.addTrack(t))
+        borrowedAudioRef.current = true   // don't stop these on cleanup
+        setHasAudio(true)
+      } else {
+        borrowedAudioRef.current = false
+        try {
+          const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          if (micStream.getAudioTracks().length > 0) {
+            micStream.getAudioTracks().forEach(t => combined.addTrack(t))
+            micStreamRef.current = micStream
+            setHasAudio(true)
+          } else {
+            setAudioError('Microphone returned no audio tracks')
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          setAudioError(`Mic unavailable: ${msg}`)
+          // Continue recording video-only
         }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        setAudioError(`Mic unavailable: ${msg}`)
-        // Continue recording video-only
       }
 
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
@@ -131,9 +141,12 @@ export function useScreenRecorder() {
     })
 
     displayStreamRef.current?.getTracks().forEach(t => t.stop())
+    // Only stop mic tracks if we opened the stream ourselves (micStreamRef is set).
+    // If we reused the app's existing audio stream, don't touch those tracks.
     micStreamRef.current?.getTracks().forEach(t => t.stop())
     displayStreamRef.current = null
     micStreamRef.current = null
+    borrowedAudioRef.current = null
 
     const blob = new Blob(chunksRef.current, { type: 'video/webm' })
     const uint8 = new Uint8Array(await blob.arrayBuffer())
