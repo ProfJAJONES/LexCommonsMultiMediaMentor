@@ -97,6 +97,11 @@ export default function App() {
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLDivElement>(null)
 
+  // Resize state for draggable dividers
+  const [sidebarWidth, setSidebarWidth] = useState(320)
+  const [videoMaxHeight, setVideoMaxHeight] = useState(400)
+  const [bodyTrackerWidth, setBodyTrackerWidth] = useState(220)
+
   // Fetch available audio input devices on mount and whenever permissions change
   function refreshMicDevices() {
     navigator.mediaDevices.enumerateDevices().then(devs => {
@@ -559,7 +564,7 @@ ${ann.comments.length === 0
       {showBlackHoleSetup && <BlackHoleSetup onClose={() => setShowBlackHoleSetup(false)} />}
 
       {/* Sidebar */}
-      <aside style={styles.sidebar}>
+      <aside style={{ ...styles.sidebar, width: sidebarWidth, minWidth: sidebarWidth }}>
         {/* Traffic-light clearance — draggable titlebar zone */}
         <div style={{ height: 38, WebkitAppRegion: 'drag', flexShrink: 0 } as React.CSSProperties} />
         <div style={styles.sidebarHeader}>
@@ -901,6 +906,23 @@ ${ann.comments.length === 0
         </div>
       </aside>
 
+      {/* Sidebar ↔ Main resize handle */}
+      <div
+        onMouseDown={(e) => {
+          e.preventDefault()
+          const startX = e.clientX
+          const startW = sidebarWidth
+          function onMove(ev: MouseEvent) { setSidebarWidth(Math.max(200, Math.min(520, startW + (ev.clientX - startX)))) }
+          function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+          document.addEventListener('mousemove', onMove)
+          document.addEventListener('mouseup', onUp)
+        }}
+        style={{ width: 5, cursor: 'col-resize', flexShrink: 0, background: 'transparent', position: 'relative', zIndex: 10 }}
+        title="Drag to resize sidebar"
+      >
+        <div style={{ position: 'absolute', top: '50%', left: 1, transform: 'translateY(-50%)', width: 3, height: 32, background: '#bae6fd', borderRadius: 2 }} />
+      </div>
+
       {/* Main area — report view takes over when that tab is active */}
       {activeTab === 'report' && (
         <main style={{ ...styles.main, padding: 0, overflow: 'hidden' }}>
@@ -1140,7 +1162,7 @@ ${ann.comments.length === 0
         {/* Video + overlay */}
         <div
           ref={videoWrapRef}
-          style={{ position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden' }}
+          style={{ position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden', maxHeight: mediaMode !== 'none' ? videoMaxHeight : undefined }}
           onMouseEnter={handleResizeObserver}
         >
           {mediaMode === 'file' && mediaPath ? (
@@ -1197,7 +1219,7 @@ ${ann.comments.length === 0
                 autoPlay
                 muted
                 playsInline
-                style={{ width: '100%', maxHeight: 540, display: 'block', borderRadius: 8 }}
+                style={{ width: '100%', maxHeight: videoMaxHeight, display: 'block', borderRadius: 8 }}
               />
               <div style={{
                 position: 'absolute',
@@ -1239,19 +1261,38 @@ ${ann.comments.length === 0
           )}
         </div>
 
+        {/* Video ↔ Graphs resize handle */}
+        {(mediaMode === 'file' && mediaPath || mediaMode === 'webcam') && (
+          <div
+            onMouseDown={(e) => {
+              e.preventDefault()
+              const startY = e.clientY
+              const startH = videoMaxHeight
+              function onMove(ev: MouseEvent) { setVideoMaxHeight(Math.max(120, Math.min(800, startH + (ev.clientY - startY)))) }
+              function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+              document.addEventListener('mousemove', onMove)
+              document.addEventListener('mouseup', onUp)
+            }}
+            style={{ height: 8, cursor: 'row-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: -6, zIndex: 5, position: 'relative' }}
+            title="Drag to resize video area"
+          >
+            <div style={{ width: 48, height: 3, background: '#bae6fd', borderRadius: 2 }} />
+          </div>
+        )}
+
         {/* Graphs — file mode and webcam mode */}
         {(mediaMode === 'file' && mediaPath || mediaMode === 'webcam') && (
-          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            {/* Audio graphs column */}
-            <div style={styles.graphs}>
-              {/* Audio source indicator */}
-              <AudioSourceBar
-                source={audioSource}
-                mediaMode={mediaMode}
-                micDevices={micDevices}
-                selectedMicId={selectedMicId}
-              />
+          <div style={styles.graphs}>
+            {/* Audio source indicator */}
+            <AudioSourceBar
+              source={audioSource}
+              mediaMode={mediaMode}
+              micDevices={micDevices}
+              selectedMicId={selectedMicId}
+            />
 
+            {/* Pitch graph + Body tracker side by side */}
+            <div style={{ display: 'flex', gap: 0, alignItems: 'flex-start' }}>
               <PitchGraph
                 ref={pitchGraphRef}
                 samples={audio.pitchHistory}
@@ -1259,23 +1300,41 @@ ${ann.comments.length === 0
                 width={graphWidth}
                 height={260}
               />
-              <PianoKeyboard
-                hz={audio.currentPitch}
-                width={graphWidth}
-              />
-              <DecibelGraph
-                ref={decibelGraphRef}
-                samples={audio.dbHistory}
-                currentDb={audio.currentDb}
-                width={graphWidth}
-                height={80}
-              />
+
+              {/* Pitch ↔ BodyTracker resize handle */}
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  const startX = e.clientX
+                  const startW = bodyTrackerWidth
+                  function onMove(ev: MouseEvent) { setBodyTrackerWidth(Math.max(120, Math.min(420, startW - (ev.clientX - startX)))) }
+                  function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+                  document.addEventListener('mousemove', onMove)
+                  document.addEventListener('mouseup', onUp)
+                }}
+                style={{ width: 10, cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, alignSelf: 'stretch' }}
+                title="Drag to resize body tracker"
+              >
+                <div style={{ width: 3, height: 32, background: '#bae6fd', borderRadius: 2 }} />
+              </div>
+
+              {/* Body tracker */}
+              <div style={{ flexShrink: 0 }}>
+                <BodyTracker sourceVideoRef={videoRef} width={bodyTrackerWidth} height={260} apiKey={ai.apiKey} onMovementSample={handleMovementSample} />
+              </div>
             </div>
 
-            {/* Body movement tracker */}
-            <div style={{ background: '#f0f9ff', borderRadius: 8, padding: 14, border: '1px solid #bae6fd', flexShrink: 0 }}>
-              <BodyTracker sourceVideoRef={videoRef} width={260} height={330} apiKey={ai.apiKey} onMovementSample={handleMovementSample} />
-            </div>
+            <PianoKeyboard
+              hz={audio.currentPitch}
+              width={graphWidth}
+            />
+            <DecibelGraph
+              ref={decibelGraphRef}
+              samples={audio.dbHistory}
+              currentDb={audio.currentDb}
+              width={graphWidth}
+              height={80}
+            />
           </div>
         )}
       </main>}
