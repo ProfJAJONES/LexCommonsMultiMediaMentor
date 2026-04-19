@@ -20,7 +20,7 @@ import { useAnnotations } from './hooks/useAnnotations'
 import { useScreenRecorder } from './hooks/useScreenRecorder'
 import { useCameraInput } from './hooks/useCameraInput'
 import { useAIFeedback, SCOPE_LABELS } from './hooks/useAIFeedback'
-import type { KnowledgeScope } from './hooks/useAIFeedback'
+import type { KnowledgeScope, ChatMessage } from './hooks/useAIFeedback'
 import { useDomain, DOMAIN_CONFIG } from './hooks/useDomain'
 import { PROVIDER_CONFIG } from './utils/aiClient'
 import type { AIProvider } from './utils/aiClient'
@@ -65,6 +65,9 @@ export default function App() {
   const [fileName, setFileName] = useState('')
   const [mediaMode, setMediaMode] = useState<'none' | 'file' | 'webcam'>('none')
   const webcamStreamRef = useRef<MediaStream | null>(null)
+  const practiceMessagesRef = useRef<Array<{ speaker: string; text: string; timestamp: number }>>([])
+  const aiMessagesRef = useRef<ChatMessage[]>([])
+  const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null)
   const [currentTime, setCurrentTime] = useState(0)
   const [videoDimensions, setVideoDimensions] = useState({ w: 0, h: 0 })
   const [videoDuration, setVideoDuration] = useState(0)
@@ -86,6 +89,10 @@ export default function App() {
   const [blackholeStream, setBlackholeStream] = useState<MediaStream | null>(null)
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedMicId, setSelectedMicId] = useState<string>('')
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('')
+  const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedOutputId, setSelectedOutputId] = useState<string>('')
   const [micError, setMicError] = useState<string | null>(null)
   const [webcamError, setWebcamError] = useState<string | null>(null)
   const [showAudioPicker, setShowAudioPicker] = useState(false)
@@ -106,25 +113,39 @@ export default function App() {
   function refreshMicDevices() {
     navigator.mediaDevices.enumerateDevices().then(devs => {
       const mics = devs.filter(d => d.kind === 'audioinput')
+      const cams = devs.filter(d => d.kind === 'videoinput')
+      const outs = devs.filter(d => d.kind === 'audiooutput')
       setMicDevices(mics)
+      setCameraDevices(cams)
+      setOutputDevices(outs)
       if (mics.length > 0 && !selectedMicId) setSelectedMicId(mics[0].deviceId)
+      if (cams.length > 0 && !selectedCameraId) setSelectedCameraId(cams[0].deviceId)
+      if (outs.length > 0 && !selectedOutputId) setSelectedOutputId(outs[0].deviceId)
     }).catch(() => {})
   }
   useEffect(() => {
-    refreshMicDevices()
+    // Probe mic on startup so macOS fires the TCC permission banner immediately.
+    // Audio-only — probing video here can leave the camera in a transient muted
+    // state that interferes with the first real getUserMedia call for the webcam.
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(s => { s.getTracks().forEach(t => t.stop()); refreshMicDevices() })
+      .catch(() => { refreshMicDevices() })
     navigator.mediaDevices.addEventListener('devicechange', refreshMicDevices)
     return () => navigator.mediaDevices.removeEventListener('devicechange', refreshMicDevices)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Connect the webcam stream to the video element after it mounts in the DOM.
-  // The <video ref={videoRef}> only exists when mediaMode === 'webcam', so we can't
-  // set srcObject during handleWebcam — the element isn't rendered yet at that point.
+  // Wire webcam stream to the video element — same pattern as LivePracticePanel.
+  // Depends on webcamStream state (not a ref) so React tracks the change reliably.
   useEffect(() => {
-    if (mediaMode === 'webcam' && videoRef.current && webcamStreamRef.current) {
-      videoRef.current.srcObject = webcamStreamRef.current
-      videoRef.current.play().catch(() => {})
+    const video = videoRef.current
+    if (!video) return
+    if (webcamStream) {
+      video.srcObject = webcamStream
+      video.play().catch(e => console.error('[webcam] play() failed:', e))
+    } else {
+      video.srcObject = null
     }
-  }, [mediaMode])
+  }, [webcamStream])
 
   // Close audio picker when clicking outside
   useEffect(() => {
@@ -205,12 +226,14 @@ export default function App() {
   const [webcamAudioStream, setWebcamAudioStream] = useState<MediaStream | null>(null)
 
   const getCurrentTime = useCallback(() => videoRef.current?.currentTime ?? 0, [])
-  const analysisStream = mediaMode === 'webcam'
-    ? webcamAudioStream
-    : audioSource === 'mic' ? micStream
-    : audioSource === 'blackhole' ? blackholeStream
+  // Explicit mic/blackhole selection takes priority over media mode.
+  // 'video' source = webcam audio in webcam mode, or the video element in file mode (null).
+  const analysisStream =
+    audioSource === 'mic'        ? micStream
+    : audioSource === 'blackhole'  ? blackholeStream
+    : mediaMode === 'webcam'       ? webcamAudioStream
     : null
-  const { state: audio, start: startAudio, stop: stopAudio, reset: resetAudio } = useAudioAnalysis(
+  const { state: audio, start: startAudio, stop: stopAudio, reset: resetAudio, prepare: prepareAudio } = useAudioAnalysis(
     videoRef,
     analysisStream
   )
@@ -218,11 +241,14 @@ export default function App() {
   const screen = useScreenRecorder()
   const camera = useCameraInput()
   const ai = useAIFeedback()
+  // Keep latest AI messages in a ref so the close handler always sees current state
+  useEffect(() => { aiMessagesRef.current = ai.state.messages }, [ai.state.messages])
 
   function stopWebcam() {
     stopAudio()
     webcamStreamRef.current?.getTracks().forEach(t => t.stop())
     webcamStreamRef.current = null
+    setWebcamStream(null)
     setWebcamAudioStream(null)
     micStream?.getTracks().forEach(t => t.stop())
     blackholeStream?.getTracks().forEach(t => t.stop())
@@ -254,6 +280,8 @@ export default function App() {
     setMovementHistory([])
     setMediaMode('none')
     setVideoEnded(false)
+    practiceMessagesRef.current = []
+    aiMessagesRef.current = []
   }
 
   async function handleWebcam() {
@@ -262,10 +290,25 @@ export default function App() {
     setWebcamError(null)
     stopWebcam()
     resetAudio()
+    prepareAudio()  // create AudioContext now, within the user gesture window
     setAudioSource('video')
+
+    // Pre-flight: check TCC status before attempting getUserMedia so we can
+    // give a clear message instead of the opaque Chromium camera-blocked icon.
+    const permsCheck = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
+    if (permsCheck.camera === 'denied') {
+      setWebcamError('Camera is blocked. Open System Settings → Privacy & Security → Camera, enable this app, then restart it.')
+      mediaLoadingRef.current = false
+      return
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      const videoConstraint = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : true
+      const audioConstraint = selectedMicId ? { deviceId: { exact: selectedMicId } } : true
+      const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint, audio: audioConstraint })
+
       webcamStreamRef.current = stream
+      setWebcamStream(stream)
       const audioTracks = stream.getAudioTracks()
       const audioStream = audioTracks.length > 0 ? new MediaStream(audioTracks) : null
       if (audioStream) setWebcamAudioStream(audioStream)
@@ -336,6 +379,72 @@ export default function App() {
   const handlePause = useCallback(() => {
     stopAudio()
   }, [stopAudio])
+
+  function buildComprehensiveSessionHTML() {
+    const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+    const TAG_COLORS: Record<string, string> = {
+      pacing: '#818cf8', clarity: '#34d399', volume: '#fbbf24',
+      posture: '#f472b6', eye_contact: '#60a5fa', argument: '#f87171', general: '#94a3b8'
+    }
+    const practiceRows = practiceMessagesRef.current.map(m => {
+      const isStudent = m.speaker === 'student'
+      const label = isStudent ? 'You' : 'Practice Partner'
+      const bg = isStudent ? '#eff6ff' : '#f8fafc'
+      const border = isStudent ? '#bfdbfe' : '#e2e8f0'
+      const time = new Date(m.timestamp).toLocaleTimeString()
+      const escaped = m.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
+      return `<div style="margin-bottom:10px;padding:10px 14px;background:${bg};border:1px solid ${border};border-radius:8px;"><div style="font-size:11px;color:#64748b;margin-bottom:3px;">${label} — ${time}</div><div style="font-size:13px;color:#0f172a;line-height:1.6;">${escaped}</div></div>`
+    }).join('')
+    const aiRows = aiMessagesRef.current.map(m => {
+      const isUser = m.role === 'user'
+      const bg = isUser ? '#eff6ff' : '#f0fdf4'
+      const border = isUser ? '#bfdbfe' : '#86efac'
+      const label = isUser ? (m.displayName || 'You') : 'AI Coach'
+      const escaped = (m.content || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
+      return `<div style="margin-bottom:10px;padding:10px 14px;background:${bg};border:1px solid ${border};border-radius:8px;"><div style="font-size:11px;color:#64748b;margin-bottom:3px;font-weight:600;">${label}</div><div style="font-size:13px;color:#0f172a;line-height:1.6;">${escaped}</div></div>`
+    }).join('')
+    const feedbackRows = ann.comments.map(c => `<tr>
+      <td style="font-family:monospace;white-space:nowrap;padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#0284c7;font-weight:600;">${fmtTime(c.timestamp)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;"><span style="background:${TAG_COLORS[c.tag]}22;border:1px solid ${TAG_COLORS[c.tag]}66;border-radius:4px;color:${TAG_COLORS[c.tag]};font-size:11px;font-weight:700;padding:2px 7px;text-transform:uppercase;">${c.tag.replace('_',' ')}</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#475569;font-weight:600;">${c.author}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#1e293b;line-height:1.5;">${c.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
+    </tr>`).join('')
+
+    const hasFeedback = ann.comments.length > 0
+    const hasAI = aiMessagesRef.current.length > 0
+    const hasPractice = practiceMessagesRef.current.length > 0
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1e293b; margin: 40px; max-width: 900px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  h2 { font-size: 15px; font-weight: 700; color: #0284c7; margin: 32px 0 12px; border-bottom: 2px solid #bae6fd; padding-bottom: 6px; }
+  .meta { color: #64748b; font-size: 13px; margin-bottom: 28px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+  th { background: #f0f9ff; border-bottom: 2px solid #bae6fd; color: #0369a1; font-size: 11px; font-weight: 700; letter-spacing: .5px; padding: 8px 12px; text-align: left; text-transform: uppercase; }
+  tr:last-child td { border-bottom: none; }
+  .empty { color: #94a3b8; font-style: italic; font-size: 13px; }
+  @media print { body { margin: 20px; } }
+</style>
+</head><body>
+<h1>Session Report — ${fileName || 'Untitled'}</h1>
+<div class="meta">Exported ${new Date().toLocaleString()}${durationSec > 0 ? ` &middot; Duration: ${fmtTime(durationSec)}` : ''}</div>
+
+${hasFeedback ? `<h2>Feedback Notes</h2><table><thead><tr><th>Time</th><th>Tag</th><th>Author</th><th>Comment</th></tr></thead><tbody>${feedbackRows}</tbody></table>` : '<h2>Feedback Notes</h2><p class="empty">No feedback comments recorded.</p>'}
+
+${hasAI ? `<h2>AI Coaching Report</h2>${aiRows}` : ''}
+
+${hasPractice ? `<h2>Practice Session Transcript</h2>${practiceRows}` : ''}
+
+</body></html>`
+  }
+
+  async function handleSaveSessionAndClose() {
+    const slug = (fileName || 'session').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')
+    const datePart = new Date().toISOString().slice(0, 10)
+    await window.api.saveNotesAsPDF(buildComprehensiveSessionHTML(), `${slug}-${datePart}.pdf`)
+    doClear()
+  }
 
   function buildExportJSON() {
     return JSON.stringify({
@@ -530,18 +639,30 @@ ${ann.comments.length === 0
       {/* Close session confirmation modal */}
       {showCloseConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 10, padding: 28, maxWidth: 400, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>Close this session?</div>
-            <div style={{ fontSize: 13, color: '#475569', marginBottom: 20, lineHeight: 1.5 }}>
-              You have comments, annotations, or audio data from this session.
-              Export your notes first if you want to save them — they cannot be recovered after closing.
+          <div style={{ background: '#fff', borderRadius: 10, padding: 28, maxWidth: 440, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>Save before closing?</div>
+            <div style={{ fontSize: 13, color: '#475569', marginBottom: 6, lineHeight: 1.5 }}>
+              Your session includes:
             </div>
+            <ul style={{ fontSize: 12, color: '#475569', margin: '0 0 16px 0', paddingLeft: 18, lineHeight: 1.8 }}>
+              {ann.comments.length > 0 && <li><strong>{ann.comments.length}</strong> feedback comment{ann.comments.length !== 1 ? 's' : ''}</li>}
+              {ann.annotations.length > 0 && <li><strong>{ann.annotations.length}</strong> video annotation{ann.annotations.length !== 1 ? 's' : ''}</li>}
+              {aiMessagesRef.current.length > 0 && <li>AI coaching conversation ({aiMessagesRef.current.length} messages)</li>}
+              {practiceMessagesRef.current.length > 0 && <li>Practice session transcript ({practiceMessagesRef.current.length} turns)</li>}
+              {audio.pitchHistory.length > 0 && <li>Pitch &amp; volume data</li>}
+            </ul>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button
-                onClick={async () => { await handleExport('json'); doClear() }}
+                onClick={handleSaveSessionAndClose}
                 style={{ ...btnStyle('#0284c7'), fontSize: 13, padding: '9px 16px', textAlign: 'left' }}
               >
-                💾 Export Notes then close
+                📄 Save session PDF &amp; close
+              </button>
+              <button
+                onClick={async () => { await handleExport('pdf'); doClear() }}
+                style={{ ...btnStyle('#059669'), fontSize: 13, padding: '9px 16px', textAlign: 'left' }}
+              >
+                📝 Save feedback notes only &amp; close
               </button>
               <button
                 onClick={doClear}
@@ -553,7 +674,7 @@ ${ann.comments.length === 0
                 onClick={() => setShowCloseConfirm(false)}
                 style={{ ...btnStyle('#64748b'), fontSize: 13, padding: '9px 16px', textAlign: 'left' }}
               >
-                ← Stay in this session
+                ← Stay in session
               </button>
             </div>
           </div>
@@ -744,6 +865,7 @@ ${ann.comments.length === 0
               apiKey={ai.apiKey}
               provider={ai.provider}
               domain={domain}
+              onSessionData={msgs => { practiceMessagesRef.current = msgs }}
             />
           )}
           {activeTab === 'camera' && (
@@ -978,12 +1100,16 @@ ${ann.comments.length === 0
             <div style={{ display: 'flex', gap: 4 }}>
               <button
                 onClick={() => {
-                  // Pass the already-open audio stream so we reuse it instead of
-                  // calling getUserMedia again on a device that may already be in use.
+                  // Build the audio stream for the recording:
+                  // - webcam/mic/blackhole: pass the already-open stream (avoids re-opening a device in use)
+                  // - file mode: tap the Web Audio graph output (captureStream) so we record
+                  //   the video's clean audio track rather than falling back to the mic
+                  // - null means "no audio" — openPicker skips getUserMedia fallback
                   const audioStreamForRecording =
-                    mediaMode === 'webcam'   ? (webcamAudioStream ?? undefined) :
-                    audioSource === 'mic'    ? (micStream ?? undefined) :
-                    audioSource === 'blackhole' ? (blackholeStream ?? undefined) :
+                    mediaMode === 'webcam'          ? (webcamStreamRef.current ?? undefined) :
+                    audioSource === 'mic'           ? (micStream ?? undefined) :
+                    audioSource === 'blackhole'     ? (blackholeStream ?? undefined) :
+                    mediaMode === 'file'            ? (audio.captureStream ?? null) :
                     undefined
                   screen.openPicker(audioStreamForRecording)
                 }}
@@ -1012,26 +1138,25 @@ ${ann.comments.length === 0
                       Audio source for analysis
                     </div>
 
-                    {/* Video file audio — only when a file is loaded */}
-                    {mediaMode === 'file' && (
+                    {/* Video file audio — always shown; active when a file is loaded */}
+                    {mediaMode !== 'webcam' && (
                       <AudioPickerOption
                         active={audioSource === 'video'}
                         icon="🎬"
                         label="Video file audio"
-                        sub="Uses the audio track from your imported video"
+                        sub={mediaMode === 'file' ? 'Uses the audio track from your imported video' : 'Import a video/audio file to use this source'}
                         onClick={() => selectAudioDevice('video')}
                       />
                     )}
 
-                    {/* Webcam mic — always available */}
+                    {/* Webcam mic — selectable in webcam mode */}
                     {mediaMode === 'webcam' && (
                       <AudioPickerOption
-                        active={true}
+                        active={audioSource === 'video'}
                         icon="📷"
                         label="Webcam microphone"
-                        sub="Auto-selected in webcam mode"
-                        onClick={() => {}}
-                        disabled
+                        sub="Default: use the webcam's built-in mic"
+                        onClick={() => selectAudioDevice('video')}
                       />
                     )}
 
@@ -1066,7 +1191,7 @@ ${ann.comments.length === 0
                         active={audioSource === 'blackhole'}
                         icon="◈"
                         label="BlackHole 2ch"
-                        sub="Captures app/video audio without room noise"
+                        sub="Captures system audio — route your Mac's output through BlackHole in Audio MIDI Setup, then select this"
                         onClick={() => selectAudioDevice('blackhole')}
                       />
                     ) : (
@@ -1172,6 +1297,7 @@ ${ann.comments.length === 0
           style={{
             position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden',
             flexShrink: 0,
+            marginTop: 8,
             height: mediaMode !== 'none' ? videoAreaHeight : undefined
           }}
           onMouseEnter={handleResizeObserver}
@@ -1224,7 +1350,7 @@ ${ann.comments.length === 0
               )}
             </>
           ) : mediaMode === 'webcam' ? (
-            <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', background: '#000' }}>
+            <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', background: '#000', width: '100%', height: '100%' }}>
               <video
                 ref={videoRef}
                 autoPlay
@@ -1232,24 +1358,63 @@ ${ann.comments.length === 0
                 playsInline
                 style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: 8 }}
               />
-              <div style={{
-                position: 'absolute',
-                top: 10,
-                left: 12,
-                background: 'rgba(0,0,0,0.55)',
-                color: '#fff',
-                fontSize: 11,
-                fontWeight: 600,
-                padding: '3px 8px',
-                borderRadius: 4,
-                letterSpacing: 0.5
-              }}>
+              {/* LIVE badge */}
+              <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.55)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 4, letterSpacing: 0.5 }}>
                 LIVE
+              </div>
+              {/* Device control bar */}
+              <div style={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 8 }}>
+                {/* Mic picker */}
+                <label style={devCtrl}>
+                  <span>🎙</span>
+                  <select
+                    value={selectedMicId}
+                    onChange={e => setSelectedMicId(e.target.value)}
+                    style={devSelect}
+                  >
+                    {micDevices.map(d => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || 'Microphone'}</option>
+                    ))}
+                  </select>
+                </label>
+                {/* Speaker picker */}
+                {outputDevices.length > 0 && (
+                  <label style={devCtrl}>
+                    <span>🔊</span>
+                    <select
+                      value={selectedOutputId}
+                      onChange={e => {
+                        setSelectedOutputId(e.target.value)
+                        const v = videoRef.current as HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }
+                        v?.setSinkId?.(e.target.value).catch(() => {})
+                      }}
+                      style={devSelect}
+                    >
+                      {outputDevices.map(d => (
+                        <option key={d.deviceId} value={d.deviceId}>{d.label || 'Speaker'}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {/* Camera picker */}
+                <label style={devCtrl}>
+                  <span>📷</span>
+                  <select
+                    value={selectedCameraId}
+                    onChange={e => { setSelectedCameraId(e.target.value) }}
+                    style={devSelect}
+                    title="Change camera — click Webcam button to apply"
+                  >
+                    {cameraDevices.map(d => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || 'Camera'}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
           ) : (
             <div style={styles.placeholder}>
-              <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16, fontWeight: 500, letterSpacing: 0.2 }}>
+              <div style={{ fontSize: 14, color: '#e2e8f0', marginBottom: 16, fontWeight: 500, letterSpacing: 0.2, textAlign: 'center', maxWidth: 520, lineHeight: 1.6 }}>
                 Record or import oral advocacy practice — get real-time pitch &amp; volume analysis, annotate video, and AI coaching
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
@@ -1260,7 +1425,26 @@ ${ann.comments.length === 0
                   📷 Use Webcam
                 </button>
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 10 }}>
+              {/* Device pickers — shown before webcam starts so user can select camera first */}
+              {cameraDevices.length > 0 && (
+                <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#334155', background: '#fff', borderRadius: 8, padding: '6px 10px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: 20 }}>📷</span>
+                    <select value={selectedCameraId} onChange={e => setSelectedCameraId(e.target.value)}
+                      style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', maxWidth: 180 }}>
+                      {cameraDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Camera'}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#334155', background: '#fff', borderRadius: 8, padding: '6px 10px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: 20 }}>🎙</span>
+                    <select value={selectedMicId} onChange={e => setSelectedMicId(e.target.value)}
+                      style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', maxWidth: 180 }}>
+                      {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Microphone'}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 12 }}>
                 Supports MP4, MOV, WebM, MKV, MP3, WAV, M4A
               </div>
               {webcamError && (
@@ -1564,6 +1748,18 @@ function AnnotationsList({
       ))}
     </div>
   )
+}
+
+const devCtrl: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 4,
+  background: 'rgba(0,0,0,0.6)', borderRadius: 6, padding: '4px 8px',
+  cursor: 'pointer', color: '#fff', fontSize: 13
+}
+
+const devSelect: React.CSSProperties = {
+  background: 'transparent', border: 'none', color: '#fff',
+  fontSize: 11, cursor: 'pointer', maxWidth: 140,
+  outline: 'none'
 }
 
 // ---- Styles ----

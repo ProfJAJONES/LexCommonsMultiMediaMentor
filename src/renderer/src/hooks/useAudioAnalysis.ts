@@ -67,6 +67,7 @@ export function useAudioAnalysis(
 ) {
   const audioCtxRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
+  const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null)
   const videoSrcRef = useRef<MediaElementAudioSourceNode | null>(null)
   const streamSrcRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -97,6 +98,9 @@ export function useAudioAnalysis(
       analyser.fftSize = FFT_SIZE
       analyser.smoothingTimeConstant = 0.1
       analyser.connect(ctx.destination)
+      // Also route to a MediaStream so callers can feed it to a screen recorder
+      destNodeRef.current = ctx.createMediaStreamDestination()
+      analyser.connect(destNodeRef.current)
       analyserRef.current = analyser
     }
     return { ctx, analyser: analyserRef.current }
@@ -114,12 +118,15 @@ export function useAudioAnalysis(
     if (!videoSrcRef.current) {
       videoSrcRef.current = ctx.createMediaElementSource(video)
     }
+    // Restore speaker output for video file playback
+    try { analyser.connect(ctx.destination) } catch { /* already connected */ }
     videoSrcRef.current.connect(analyser)
   }
 
   function connectStreamSource(ctx: AudioContext, analyser: AnalyserNode, stream: MediaStream) {
-    // Disconnect old nodes first, then create + connect the new one
     disconnectAll()
+    // Silence speakers when analyzing a mic stream — routing mic to speakers causes echo
+    try { analyser.disconnect(ctx.destination) } catch { /* already disconnected */ }
     streamSrcRef.current = ctx.createMediaStreamSource(stream)
     streamSrcRef.current.connect(analyser)
   }
@@ -209,6 +216,7 @@ export function useAudioAnalysis(
     audioCtxRef.current?.close().catch(() => {})
     audioCtxRef.current = null
     analyserRef.current = null
+    destNodeRef.current = null
     videoSrcRef.current = null
     streamSrcRef.current = null
     smoothedPitchRef.current = 0
@@ -221,5 +229,9 @@ export function useAudioAnalysis(
     })
   }, [stop])
 
-  return { state, start, stop, reset }
+  // Call within a user gesture to pre-create the AudioContext while activation is still valid.
+  // Subsequent startAudio calls reuse the already-running context even after async gaps.
+  const prepare = useCallback(() => { ensureCtx() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { state, start, stop, reset, prepare, captureStream: destNodeRef.current?.stream ?? null }
 }

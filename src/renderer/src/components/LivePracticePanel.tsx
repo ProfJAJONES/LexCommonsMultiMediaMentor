@@ -3,7 +3,7 @@ import type { Domain } from '../hooks/useDomain'
 import { DOMAIN_CONFIG } from '../hooks/useDomain'
 import { PRACTICE_CHARACTERS, type PracticeCharacter } from '../config/practiceCharacters'
 import { useLivePractice } from '../hooks/useLivePractice'
-import { useWhisperTranscription } from '../hooks/useWhisperTranscription'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { useAIKnowledgeBase } from '../hooks/useAIKnowledgeBase'
 import { streamCompletion, type AIProvider } from '../utils/aiClient'
 
@@ -11,6 +11,7 @@ interface Props {
   apiKey: string
   provider: AIProvider
   domain: Domain
+  onSessionData?: (messages: Array<{ speaker: string; text: string; timestamp: number }>) => void
 }
 
 // ─── TTS helper ───────────────────────────────────────────────────────────────
@@ -26,7 +27,7 @@ function speak(text: string) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function LivePracticePanel({ apiKey, provider, domain }: Props) {
+export function LivePracticePanel({ apiKey, provider, domain, onSessionData }: Props) {
   const characters = PRACTICE_CHARACTERS[domain]
   const [character, setCharacter] = useState<PracticeCharacter>(characters[0])
   const [ttsEnabled, setTtsEnabled] = useState(false)
@@ -39,7 +40,7 @@ export function LivePracticePanel({ apiKey, provider, domain }: Props) {
 
   // Conversation
   const practice = useLivePractice(apiKey, provider)
-  const speech = useWhisperTranscription()
+  const speech = useSpeechRecognition()
   const kb = useAIKnowledgeBase(domain)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -282,14 +283,12 @@ ${rows}
     await window.api.saveReport(html)
   }
 
-  // Start session — kick off model preload so it's warm when user first speaks
   function handleStart() {
     practice.startSession(effectiveCharacter())
-    speech.preload()
   }
 
-  // End session
   function handleEnd() {
+    if (practice.messages.length > 0) onSessionData?.(practice.messages)
     practice.endSession()
     speech.abort()
     window.speechSynthesis?.cancel()
@@ -566,14 +565,6 @@ ${rows}
 
           {/* Input area */}
           <div style={s.inputArea}>
-
-            {/* Model loading indicator */}
-            {speech.modelStatus === 'loading' && (
-              <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', padding: '4px 0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                <ThinkingDots />
-                Downloading speech model (one-time, ~40 MB)…
-              </div>
-            )}
 
             {/* Primary: speech button */}
             {!practice.isResponding && !coachNote && (() => {

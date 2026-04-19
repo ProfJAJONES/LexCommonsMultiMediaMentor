@@ -38,7 +38,10 @@ export function useScreenRecorder() {
   // mic, or BlackHole) so the recording reuses that stream rather than trying to
   // open the same device again — which fails when it's already in use.
   // Pass undefined to fall back to opening the system default microphone.
-  const openPicker = useCallback(async (audioStream?: MediaStream) => {
+  // audioStream: pass a live MediaStream to use its audio tracks
+  //              pass null to record video-only (skips getUserMedia fallback)
+  //              pass undefined to fall back to the system default microphone
+  const openPicker = useCallback(async (audioStream?: MediaStream | null) => {
     setRecorderState('picking')
     setAudioError(null)
     try {
@@ -56,13 +59,17 @@ export function useScreenRecorder() {
       const combined = new MediaStream()
       displayStream.getVideoTracks().forEach(t => combined.addTrack(t))
 
-      // Prefer the already-open audio stream; only call getUserMedia as fallback
-      const existingTracks = audioStream?.getAudioTracks() ?? []
+      // Audio source priority:
+      //   MediaStream passed in → use its tracks (reuse existing open stream)
+      //   null passed in        → record video-only, skip getUserMedia
+      //   undefined             → fall back to system default microphone
+      const existingTracks = audioStream != null ? (audioStream as MediaStream).getAudioTracks() : []
       if (existingTracks.length > 0 && existingTracks[0].readyState === 'live') {
         existingTracks.forEach(t => combined.addTrack(t))
         borrowedAudioRef.current = true   // don't stop these on cleanup
         setHasAudio(true)
-      } else {
+      } else if (audioStream === undefined) {
+        // No stream provided — fall back to system default microphone
         borrowedAudioRef.current = false
         try {
           const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
@@ -79,6 +86,7 @@ export function useScreenRecorder() {
           // Continue recording video-only
         }
       }
+      // else audioStream === null → video-only recording, no audio fallback
 
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
         ? 'video/webm;codecs=vp9,opus'

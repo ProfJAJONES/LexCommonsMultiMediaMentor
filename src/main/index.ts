@@ -42,10 +42,12 @@ function createWindow(): void {
 
   // Electron 30+ requires setDisplayMediaRequestHandler to be registered or
   // getDisplayMedia() is silently rejected in the renderer.
-  // useSystemPicker: true triggers the native macOS 15 screen picker when
-  // the request is video-only (audio: false), so the handler body is a fallback only.
-  win.webContents.session.setDisplayMediaRequestHandler((_request, callback) => {
-    callback({})
+  // useSystemPicker: true shows the native macOS screen picker. After the user
+  // picks a source, Electron calls this handler with request.video set to the
+  // selected DesktopCapturerSource — we must pass it through the callback or
+  // the request is denied (callback({}) = deny).
+  win.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
+    callback({ video: request.video, audio: request.audio })
   }, { useSystemPicker: true })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -62,7 +64,15 @@ function createWindow(): void {
 
 registerIpcHandlers(ipcMain, dialog)
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Request camera and microphone access from the main process so macOS registers
+  // this app in System Settings → Privacy & Security. getUserMedia in the sandboxed
+  // renderer does not trigger TCC registration on its own.
+  if (process.platform === 'darwin') {
+    await systemPreferences.askForMediaAccess('camera').catch(() => {})
+    await systemPreferences.askForMediaAccess('microphone').catch(() => {})
+  }
+
   // Serve local files via media:// so the renderer can load them regardless
   // of whether it is running from localhost (dev) or a file:// origin (prod).
   protocol.handle('media', async (request) => {
