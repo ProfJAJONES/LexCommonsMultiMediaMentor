@@ -16,7 +16,7 @@ export interface PitchGraphHandle {
 const MIN_HZ = 65.4   // C2
 const MAX_HZ = 2093.0 // C7
 
-const GUTTER_L = 54  // accommodates clef symbol + partial staff
+const GUTTER_L = 62  // accommodates clef symbol + partial staff
 const GUTTER_R = 48  // Hz labels up to 6 chars ("C7 2093")
 
 // Musical reference points used for grid lines & right-side labels
@@ -142,10 +142,10 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
     // 28% of the font-size above the baseline, so push the baseline DOWN by that
     // amount from G4's y-position — this centres the oval on the G4 staff line.
     const trebleStaffPx = Math.abs(hzToY(329.63, height) - hzToY(698.46, height))
-    const trebleClefFontPx = Math.min(70, Math.max(22, Math.round(trebleStaffPx * 3.0)))
+    const trebleClefFontPx = Math.min(52, Math.max(22, Math.round(trebleStaffPx * 3.0)))
     ctx.font = `${trebleClefFontPx}px Georgia, "Times New Roman", serif`
     ctx.textBaseline = 'alphabetic'
-    ctx.fillText('\u{1D11E}', clefCx, hzToY(392.00, height) + trebleClefFontPx * 0.28)
+    ctx.fillText('\u{1D11E}', clefCx, hzToY(392.00, height) + trebleClefFontPx * 0.20)
 
     // ── Bass clef 𝄢 ────────────────────────────────────────────────────────
     // Top of glyph aligns near the top staff line (A3); nub lands on F3 (174.61 Hz)
