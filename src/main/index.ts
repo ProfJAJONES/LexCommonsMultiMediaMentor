@@ -65,14 +65,6 @@ function createWindow(): void {
 registerIpcHandlers(ipcMain, dialog)
 
 app.whenReady().then(async () => {
-  // Request camera and microphone access from the main process so macOS registers
-  // this app in System Settings → Privacy & Security. getUserMedia in the sandboxed
-  // renderer does not trigger TCC registration on its own.
-  if (process.platform === 'darwin') {
-    await systemPreferences.askForMediaAccess('camera').catch(() => {})
-    await systemPreferences.askForMediaAccess('microphone').catch(() => {})
-  }
-
   // Serve local files via media:// so the renderer can load them regardless
   // of whether it is running from localhost (dev) or a file:// origin (prod).
   protocol.handle('media', async (request) => {
@@ -102,10 +94,15 @@ app.whenReady().then(async () => {
     })
   })
 
-  // Camera/mic permissions are requested by getUserMedia in the renderer when
-  // the user clicks the Webcam button — no proactive request needed here.
-
   createWindow()
+
+  // Request camera and microphone access after the window is visible so macOS
+  // attaches the TCC prompt to a real window. Must happen after createWindow()
+  // so the app has a frontmost window when the system dialog appears.
+  if (process.platform === 'darwin') {
+    systemPreferences.askForMediaAccess('camera').catch(() => {})
+    systemPreferences.askForMediaAccess('microphone').catch(() => {})
+  }
 
   // Check for updates a few seconds after launch (only in production)
   if (!process.env['ELECTRON_RENDERER_URL']) {
