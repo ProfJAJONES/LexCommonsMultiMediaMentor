@@ -28,9 +28,6 @@ contextBridge.exposeInMainWorld('api', {
   getCaptureSources: (): Promise<CaptureSource[]> =>
     ipcRenderer.invoke('desktop:getSources'),
 
-  prepareCapture: (sourceId: string): Promise<void> =>
-    ipcRenderer.invoke('desktop:prepareCapture', sourceId),
-
   saveRecording: (buffer: Uint8Array, name: string): Promise<string | { fallback: true; webmPath: string } | null> =>
     ipcRenderer.invoke('desktop:saveRecording', buffer, name),
 

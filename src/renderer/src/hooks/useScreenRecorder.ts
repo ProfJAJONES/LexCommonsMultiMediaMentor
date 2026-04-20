@@ -34,10 +34,6 @@ export function useScreenRecorder() {
   // model changes. Use getDisplayMedia() directly — it shows the native macOS screen
   // picker which handles permissions automatically.
   //
-  // audioStream: pass the app's currently-active audio stream (webcam mic, selected
-  // mic, or BlackHole) so the recording reuses that stream rather than trying to
-  // open the same device again — which fails when it's already in use.
-  // Pass undefined to fall back to opening the system default microphone.
   // audioStream: pass a live MediaStream to use its audio tracks
   //              pass null to record video-only (skips getUserMedia fallback)
   //              pass undefined to fall back to the system default microphone
@@ -154,7 +150,7 @@ export function useScreenRecorder() {
     micStreamRef.current?.getTracks().forEach(t => t.stop())
     displayStreamRef.current = null
     micStreamRef.current = null
-    borrowedAudioRef.current = null
+    borrowedAudioRef.current = false
 
     const blob = new Blob(chunksRef.current, { type: 'video/webm' })
     const uint8 = new Uint8Array(await blob.arrayBuffer())

@@ -4,3 +4,9 @@ out/
 .DS_Store
 *.dmg
 *.blockmap
+
+# Certificates and secrets — never commit
+*.p12
+*.cer
+*.pem
+*.key

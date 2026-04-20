@@ -39,7 +39,6 @@ declare global {
       loadFeedback: () => Promise<Record<string, unknown> | null>
       openPath: (p: string) => Promise<void>
       getCaptureSources: () => Promise<CaptureSource[]>
-      prepareCapture: (sourceId: string) => Promise<void>
       saveRecording: (buffer: Uint8Array, name: string) => Promise<string | { fallback: true; webmPath: string } | null>
       exportAnnotatedVideo: (videoPath: string, pitchPng: string, decibelPng: string, comments: Array<{ timestamp: number; tag: string; text: string }>) => Promise<string | { error: string } | null>
       saveReport: (html: string) => Promise<string | null>
@@ -612,7 +611,8 @@ ${ann.comments.length === 0
 
   const graphWidth = 560
 
-  const durationSec = videoDuration
+  const durationSec = videoDuration ||
+    (audio.pitchHistory.length > 0 ? audio.pitchHistory[audio.pitchHistory.length - 1].t : 0)
   const hasAudioData = audio.pitchHistory.length > 0 || audio.dbHistory.length > 0
 
   return (
