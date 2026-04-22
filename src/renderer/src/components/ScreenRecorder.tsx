@@ -1,6 +1,10 @@
 import React, { useState } from 'react'
 import type { CaptureSource, RecorderState } from '../hooks/useScreenRecorder'
 
+declare global {
+  interface Window { api: { minimizeWindow: () => void } & Record<string, unknown> }
+}
+
 interface PickerProps {
   sources: CaptureSource[]
   onSelect: (id: string, withMic: boolean) => void
@@ -160,6 +164,17 @@ export function RecordingIndicator({ elapsedSec, state, hasAudio, videoRef, onPa
         >
           🎙
         </span>
+      )}
+
+      {/* Hide app — lets the user bring their target window to the front */}
+      {isActive && (
+        <button
+          onClick={() => window.api.minimizeWindow()}
+          style={ctrlBtn('#f1f5f9', '#334155')}
+          title="Minimize this app so you can see the window you're recording"
+        >
+          Hide App
+        </button>
       )}
 
       {/* Pause / Resume recording */}

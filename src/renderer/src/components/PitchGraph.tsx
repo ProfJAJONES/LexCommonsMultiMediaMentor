@@ -137,15 +137,14 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
     ctx.textAlign = 'center'
 
     // ── Treble clef 𝄞 ──────────────────────────────────────────────────────
-    // Size the glyph to span the treble staff (E4–F5), capped so it fits the gutter.
-    // Position: with textBaseline='alphabetic' in Georgia, the G4 oval sits roughly
-    // 28% of the font-size above the baseline, so push the baseline DOWN by that
-    // amount from G4's y-position — this centres the oval on the G4 staff line.
-    const trebleStaffPx = Math.abs(hzToY(329.63, height) - hzToY(698.46, height))
-    const trebleClefFontPx = Math.min(52, Math.max(22, Math.round(trebleStaffPx * 3.0)))
+    // Size the glyph so its top curl lands at the F5 staff line.
+    // With textBaseline='alphabetic': baseline = G4_y + 0.20*fontPx
+    // Glyph top ≈ baseline − 0.80*fontPx  →  fontPx = (G4_y − F5_y) / 0.60
+    const G4y = hzToY(392.00, height)
+    const trebleClefFontPx = Math.max(20, Math.round((G4y - hzToY(698.46, height)) / 0.60))
     ctx.font = `${trebleClefFontPx}px Georgia, "Times New Roman", serif`
     ctx.textBaseline = 'alphabetic'
-    ctx.fillText('\u{1D11E}', clefCx, hzToY(392.00, height) + trebleClefFontPx * 0.20)
+    ctx.fillText('\u{1D11E}', clefCx, G4y + trebleClefFontPx * 0.20)
 
     // ── Bass clef 𝄢 ────────────────────────────────────────────────────────
     // Top of glyph aligns near the top staff line (A3); nub lands on F3 (174.61 Hz)

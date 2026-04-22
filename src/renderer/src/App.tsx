@@ -46,6 +46,7 @@ declare global {
       openAudioMidiSetup: () => Promise<string | null>
       getMediaPermissions: () => Promise<{ camera: string; microphone: string }>
       requestMediaAccess: () => Promise<{ camera: boolean; microphone: boolean }>
+      minimizeWindow: () => void
     }
   }
 }
@@ -104,7 +105,7 @@ export default function App() {
   const exportBtnRef = useRef<HTMLDivElement>(null)
 
   // Resize state for draggable dividers
-  const [sidebarWidth, setSidebarWidth] = useState(320)
+  const [sidebarWidth, setSidebarWidth] = useState(520)
   const [videoAreaHeight, setVideoAreaHeight] = useState(300)
   const [bodyTrackerWidth, setBodyTrackerWidth] = useState(220)
 
@@ -232,12 +233,39 @@ export default function App() {
     : audioSource === 'blackhole'  ? blackholeStream
     : mediaMode === 'webcam'       ? webcamAudioStream
     : null
-  const { state: audio, start: startAudio, stop: stopAudio, reset: resetAudio, prepare: prepareAudio } = useAudioAnalysis(
+  const { state: audio, start: startAudio, stop: stopAudio, reset: resetAudio, prepare: prepareAudio, getCaptureStream } = useAudioAnalysis(
     videoRef,
     analysisStream
   )
   const ann = useAnnotations(getCurrentTime)
   const screen = useScreenRecorder()
+
+  // Mic stream opened solely to drive the meters during screen recording (no other audio is active)
+  const screenMicRef = useRef<MediaStream | null>(null)
+
+  // Start audio analysis when screen recording begins so meters are always live.
+  // If an analysis stream is already wired (mic / blackhole / webcam), use it.
+  // Otherwise open a default mic just for the meters.
+  useEffect(() => {
+    if (screen.recorderState === 'recording' && !audio.isAnalyzing) {
+      if (analysisStream) {
+        startAudio()
+      } else {
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          .then(stream => {
+            screenMicRef.current = stream
+            startAudio(stream)
+          })
+          .catch(() => { /* meters stay flat — mic unavailable */ })
+      }
+    }
+    if (screen.recorderState === 'idle') {
+      if (screenMicRef.current) {
+        screenMicRef.current.getTracks().forEach(t => t.stop())
+        screenMicRef.current = null
+      }
+    }
+  }, [screen.recorderState]) // eslint-disable-line react-hooks/exhaustive-deps
   const camera = useCameraInput()
   const ai = useAIFeedback()
   // Keep latest AI messages in a ref so the close handler always sees current state
@@ -1030,10 +1058,10 @@ ${ann.comments.length === 0
           document.addEventListener('mousemove', onMove)
           document.addEventListener('mouseup', onUp)
         }}
-        style={{ width: 5, cursor: 'col-resize', flexShrink: 0, background: 'transparent', position: 'relative', zIndex: 10 }}
+        style={{ width: 12, cursor: 'col-resize', flexShrink: 0, background: 'transparent', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         title="Drag to resize sidebar"
       >
-        <div style={{ position: 'absolute', top: '50%', left: 1, transform: 'translateY(-50%)', width: 3, height: 32, background: '#bae6fd', borderRadius: 2 }} />
+        <div style={{ width: 4, height: 48, background: '#93c5fd', borderRadius: 3 }} />
       </div>
 
       {/* Main area — report view takes over when that tab is active */}
@@ -1087,21 +1115,23 @@ ${ann.comments.length === 0
             </div>
           )}
 
-          {screen.recorderState === 'idle' && !screen.savedPath && (
+          {screen.recorderState === 'idle' && (
             <div style={{ display: 'flex', gap: 4 }}>
               <button
                 onClick={() => {
-                  // Build the audio stream for the recording:
-                  // - webcam/mic/blackhole: pass the already-open stream (avoids re-opening a device in use)
-                  // - file mode: tap the Web Audio graph output (captureStream) so we record
-                  //   the video's clean audio track rather than falling back to the mic
-                  // - null means "no audio" — openPicker skips getUserMedia fallback
-                  const audioStreamForRecording =
-                    mediaMode === 'webcam'          ? (webcamStreamRef.current ?? undefined) :
-                    audioSource === 'mic'           ? (micStream ?? undefined) :
-                    audioSource === 'blackhole'     ? (blackholeStream ?? undefined) :
-                    mediaMode === 'file'            ? (audio.captureStream ?? null) :
-                    undefined
+                  // Always use the Web Audio capture stream — it's the same audio that drives
+                  // the pitch/decibel meters, read at call-time via getCaptureStream() so we
+                  // never read a stale render-snapshot. Passing raw webcam/mic tracks alongside
+                  // an active createMediaStreamSource() on those same tracks causes Electron to
+                  // silently drop audio from the MediaRecorder output.
+                  // Fall back to raw streams only if audio analysis hasn't started yet.
+                  const cs = getCaptureStream()
+                  const audioStreamForRecording: MediaStream | undefined =
+                    cs ??
+                    (mediaMode === 'webcam'      ? (webcamStreamRef.current ?? undefined) :
+                     audioSource === 'mic'       ? (micStream ?? undefined) :
+                     audioSource === 'blackhole' ? (blackholeStream ?? undefined) :
+                     undefined)
                   screen.openPicker(audioStreamForRecording)
                 }}
                 style={btnStyle('#7c3aed')}
@@ -1214,11 +1244,31 @@ ${ann.comments.length === 0
                 onResume={screen.resumeRecording}
                 onStop={screen.stopRecording}
               />
-              {screen.audioError && (
+              {screen.audioError && screen.audioError.startsWith('screen-recording-denied:') ? (
+                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', fontSize: 12 }}>
+                  <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: 4 }}>
+                    Screen Recording permission not granted
+                  </div>
+                  <div style={{ color: '#7f1d1d', marginBottom: 6 }}>
+                    macOS is blocking LexCommons from capturing other windows. To record your entire screen:
+                  </div>
+                  <ol style={{ color: '#7f1d1d', margin: '0 0 6px 16px', padding: 0, lineHeight: 1.6 }}>
+                    <li>Click <strong>Open Settings</strong> below</li>
+                    <li>Find <strong>LexCommons Multimedia Mentor</strong> and enable the toggle</li>
+                    <li>Restart this app, then try recording again</li>
+                  </ol>
+                  <button
+                    onClick={() => (window.api as Record<string, unknown> & { openScreenRecordingSettings: () => void }).openScreenRecordingSettings()}
+                    style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Open Screen Recording Settings
+                  </button>
+                </div>
+              ) : screen.audioError ? (
                 <span style={{ color: '#b45309', fontSize: 11, alignSelf: 'center' }}>
                   ⚠ {screen.audioError} — recording video only
                 </span>
-              )}
+              ) : null}
             </>
           )}
           {screen.savedPath && (
@@ -1448,27 +1498,24 @@ ${ann.comments.length === 0
         </div>
 
         {/* Video ↔ Graphs resize handle */}
-        {(mediaMode === 'file' && mediaPath || mediaMode === 'webcam') && (
-          <div
-            onMouseDown={(e) => {
-              e.preventDefault()
-              const startY = e.clientY
-              const startH = videoAreaHeight
-              function onMove(ev: MouseEvent) { setVideoAreaHeight(Math.max(80, Math.min(700, startH + (ev.clientY - startY)))) }
-              function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
-              document.addEventListener('mousemove', onMove)
-              document.addEventListener('mouseup', onUp)
-            }}
-            style={{ height: 10, cursor: 'row-resize', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            title="Drag to resize video area"
-          >
-            <div style={{ width: 48, height: 3, background: '#bae6fd', borderRadius: 2 }} />
-          </div>
-        )}
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault()
+            const startY = e.clientY
+            const startH = videoAreaHeight
+            function onMove(ev: MouseEvent) { setVideoAreaHeight(Math.max(80, Math.min(700, startH + (ev.clientY - startY)))) }
+            function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+            document.addEventListener('mousemove', onMove)
+            document.addEventListener('mouseup', onUp)
+          }}
+          style={{ height: 16, cursor: 'row-resize', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          title="Drag to resize video area"
+        >
+          <div style={{ width: 80, height: 4, background: '#93c5fd', borderRadius: 3 }} />
+        </div>
 
-        {/* Graphs — file mode and webcam mode — scrollable, takes remaining height */}
-        {(mediaMode === 'file' && mediaPath || mediaMode === 'webcam') && (
-          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingBottom: 12 }}>
+        {/* Graphs — always visible */}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingBottom: 12 }}>
           <div style={styles.graphs}>
             {/* Audio source indicator */}
             <AudioSourceBar
@@ -1499,10 +1546,10 @@ ${ann.comments.length === 0
                   document.addEventListener('mousemove', onMove)
                   document.addEventListener('mouseup', onUp)
                 }}
-                style={{ width: 10, cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, alignSelf: 'stretch' }}
+                style={{ width: 14, cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, alignSelf: 'stretch' }}
                 title="Drag to resize body tracker"
               >
-                <div style={{ width: 3, height: 32, background: '#bae6fd', borderRadius: 2 }} />
+                <div style={{ width: 4, height: 48, background: '#93c5fd', borderRadius: 3 }} />
               </div>
 
               {/* Body tracker */}
@@ -1523,8 +1570,7 @@ ${ann.comments.length === 0
               height={80}
             />
           </div>
-          </div>
-        )}
+        </div>
       </main>}
     </div>
   )

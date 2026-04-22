@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, dialog, protocol, net, systemPreferences } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, dialog, protocol, net, systemPreferences, desktopCapturer } from 'electron'
 import { join, resolve, normalize } from 'path'
 import { homedir } from 'os'
 import { autoUpdater } from 'electron-updater'
@@ -46,8 +46,18 @@ function createWindow(): void {
   // picks a source, Electron calls this handler with request.video set to the
   // selected DesktopCapturerSource — we must pass it through the callback or
   // the request is denied (callback({}) = deny).
-  win.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
-    callback({ video: request.video, audio: request.audio })
+  win.webContents.session.setDisplayMediaRequestHandler(async (request, callback) => {
+    console.log('[displayMedia] request.video:', request.video, '| type:', typeof request.video)
+    if (request.video && typeof request.video === 'object') {
+      console.log('[displayMedia] passing through source id:', (request.video as { id?: string }).id)
+      callback({ video: request.video, audio: request.audio })
+      return
+    }
+    // request.video is null/undefined or boolean true — fall back to desktopCapturer screen source
+    console.log('[displayMedia] falling back to desktopCapturer screen source')
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })
+    console.log('[displayMedia] screen sources found:', sources.map(s => s.name))
+    callback(sources[0] ? { video: sources[0] } : {})
   }, { useSystemPicker: true })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -95,6 +105,11 @@ app.whenReady().then(async () => {
   })
 
   createWindow()
+
+  if (process.platform === 'darwin') {
+    const screenStatus = systemPreferences.getMediaAccessStatus('screen')
+    console.log('[permissions] screen recording status at startup:', screenStatus)
+  }
 
   // Request camera and microphone access after the window is visible so macOS
   // attaches the TCC prompt to a real window. Must happen after createWindow()

@@ -11,7 +11,7 @@ export type RecorderState = 'idle' | 'picking' | 'recording' | 'paused' | 'savin
 
 export function useScreenRecorder() {
   const [recorderState, setRecorderState] = useState<RecorderState>('idle')
-  const [sources] = useState<CaptureSource[]>([])
+  const [sources, setSources] = useState<CaptureSource[]>([])
   const [elapsedSec, setElapsedSec] = useState(0)
   const [hasAudio, setHasAudio] = useState(false)
   const [audioError, setAudioError] = useState<string | null>(null)
@@ -27,91 +27,122 @@ export function useScreenRecorder() {
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const displayStreamRef = useRef<MediaStream | null>(null)
-  const micStreamRef = useRef<MediaStream | null>(null)   // stream we opened ourselves (must stop on cleanup)
-  const borrowedAudioRef = useRef<boolean>(false)         // true when reusing app stream (don't stop on cleanup)
+  const micStreamRef = useRef<MediaStream | null>(null)
+  const borrowedAudioRef = useRef<boolean>(false)
+  const pendingAudioRef = useRef<MediaStream | null | undefined>(undefined)
 
-  // On macOS 15, desktopCapturer.getSources() returns empty due to Sequoia permission
-  // model changes. Use getDisplayMedia() directly — it shows the native macOS screen
-  // picker which handles permissions automatically.
-  //
-  // audioStream: pass a live MediaStream to use its audio tracks
-  //              pass null to record video-only (skips getUserMedia fallback)
-  //              pass undefined to fall back to the system default microphone
-  const openPicker = useCallback(async (audioStream?: MediaStream | null) => {
-    setRecorderState('picking')
-    setAudioError(null)
-    try {
-      // Native macOS screen picker — no source pre-selection needed
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: false
-      })
-      displayStreamRef.current = displayStream
+  // ── shared recording start ─────────────────────────────────────────────────
+  // audioStream: MediaStream → use its audio tracks (borrowed, don't stop on cleanup)
+  //              null        → video-only, skip mic fallback
+  //              undefined   → fall back to system default mic
+  const beginRecording = useCallback(async (videoStream: MediaStream, audioStream: MediaStream | null | undefined) => {
+    displayStreamRef.current = videoStream
+    setRecorderState('recording')
+    setElapsedSec(0)
+    setHasAudio(false)
 
-      setRecorderState('recording')
-      setElapsedSec(0)
-      setHasAudio(false)
+    const combined = new MediaStream()
+    videoStream.getVideoTracks().forEach(t => combined.addTrack(t))
 
-      const combined = new MediaStream()
-      displayStream.getVideoTracks().forEach(t => combined.addTrack(t))
-
-      // Audio source priority:
-      //   MediaStream passed in → use its tracks (reuse existing open stream)
-      //   null passed in        → record video-only, skip getUserMedia
-      //   undefined             → fall back to system default microphone
-      const existingTracks = audioStream != null ? (audioStream as MediaStream).getAudioTracks() : []
-      if (existingTracks.length > 0 && existingTracks[0].readyState === 'live') {
-        existingTracks.forEach(t => combined.addTrack(t))
-        borrowedAudioRef.current = true   // don't stop these on cleanup
-        setHasAudio(true)
-      } else if (audioStream === undefined) {
-        // No stream provided — fall back to system default microphone
-        borrowedAudioRef.current = false
-        try {
-          const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-          if (micStream.getAudioTracks().length > 0) {
-            micStream.getAudioTracks().forEach(t => combined.addTrack(t))
-            micStreamRef.current = micStream
-            setHasAudio(true)
-          } else {
-            setAudioError('Microphone returned no audio tracks')
-          }
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e)
-          setAudioError(`Mic unavailable: ${msg}`)
-          // Continue recording video-only
+    const existingTracks = audioStream != null ? audioStream.getAudioTracks() : []
+    if (existingTracks.length > 0 && existingTracks[0].readyState === 'live') {
+      existingTracks.forEach(t => combined.addTrack(t))
+      borrowedAudioRef.current = true
+      setHasAudio(true)
+    } else if (audioStream === undefined) {
+      borrowedAudioRef.current = false
+      try {
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        if (micStream.getAudioTracks().length > 0) {
+          micStream.getAudioTracks().forEach(t => combined.addTrack(t))
+          micStreamRef.current = micStream
+          setHasAudio(true)
+        } else {
+          setAudioError('Microphone returned no audio tracks')
         }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        setAudioError(`Mic unavailable: ${msg}`)
       }
-      // else audioStream === null → video-only recording, no audio fallback
-
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-        ? 'video/webm;codecs=vp9,opus'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-        ? 'video/webm;codecs=vp8,opus'
-        : 'video/webm'
-
-      const recorder = new MediaRecorder(combined, { mimeType })
-      chunksRef.current = []
-      recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      recorder.start(500)
-      mediaRecorderRef.current = recorder
-
-      timerRef.current = setInterval(() => setElapsedSec(s => s + 1), 1000)
-      displayStream.getVideoTracks()[0].onended = () => stopRecording()
-    } catch {
-      // User cancelled the native picker or permission denied
-      setRecorderState('idle')
     }
+
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+      ? 'video/webm;codecs=vp9,opus'
+      : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+      ? 'video/webm;codecs=vp8,opus'
+      : 'video/webm'
+
+    const recorder = new MediaRecorder(combined, { mimeType })
+    chunksRef.current = []
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+    recorder.start(500)
+    mediaRecorderRef.current = recorder
+
+    timerRef.current = setInterval(() => setElapsedSec(s => s + 1), 1000)
+    videoStream.getVideoTracks()[0].onended = () => stopRecording()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── openPicker ──────────────────────────────────────────────────────────────
+  // audioStream is stashed so startRecording (called from SourcePicker) can use it.
+  const openPicker = useCallback(async (audioStream?: MediaStream | null) => {
+    setAudioError(null)
+    pendingAudioRef.current = audioStream
+
+    // Try desktopCapturer first — works reliably when screen recording is granted
+    let captureSources: CaptureSource[] = []
+    try {
+      captureSources = await window.api.getCaptureSources()
+    } catch { /* ignore */ }
+
+    if (captureSources.length > 0) {
+      // Show our own picker so the user can choose which screen/window
+      setSources(captureSources)
+      setRecorderState('picking')
+      return
+    }
+
+    // No sources from desktopCapturer — fall back to native system picker
+    setRecorderState('picking')
+    try {
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      await beginRecording(displayStream, audioStream)
+    } catch {
+      setRecorderState('idle')
+    }
+  }, [beginRecording])
+
   const cancelPicker = useCallback(() => {
+    setSources([])
     setRecorderState('idle')
   }, [])
 
-  // Legacy — kept for API compatibility but openPicker now handles the full flow
-  const startRecording = useCallback(async (_sourceId: string, _withMic: boolean) => {
-    await openPicker()
-  }, [openPicker])
+  // ── startRecording — called by SourcePicker when user picks a source ────────
+  const startRecording = useCallback(async (sourceId: string, withMic: boolean) => {
+    setSources([])
+    setRecorderState('picking') // briefly picking while we open the stream
+
+    try {
+      // Legacy Electron API — works for both window and screen sources
+      const videoStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: sourceId,
+            maxWidth: window.screen.width * window.devicePixelRatio,
+            maxHeight: window.screen.height * window.devicePixelRatio,
+          }
+        } as MediaTrackConstraints
+      })
+
+      const audioArg = withMic ? pendingAudioRef.current : null
+      await beginRecording(videoStream, audioArg)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setAudioError(`Could not start recording: ${msg}`)
+      setRecorderState('idle')
+    }
+  }, [beginRecording])
 
   const pauseRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current
@@ -145,8 +176,6 @@ export function useScreenRecorder() {
     })
 
     displayStreamRef.current?.getTracks().forEach(t => t.stop())
-    // Only stop mic tracks if we opened the stream ourselves (micStreamRef is set).
-    // If we reused the app's existing audio stream, don't touch those tracks.
     micStreamRef.current?.getTracks().forEach(t => t.stop())
     displayStreamRef.current = null
     micStreamRef.current = null

@@ -53,6 +53,15 @@ contextBridge.exposeInMainWorld('api', {
 
   requestMediaAccess: (): Promise<{ camera: boolean; microphone: boolean }> =>
     ipcRenderer.invoke('permissions:requestMedia'),
+
+  getScreenRecordingStatus: (): Promise<string> =>
+    ipcRenderer.invoke('permissions:getScreenRecordingStatus'),
+
+  openScreenRecordingSettings: (): Promise<void> =>
+    ipcRenderer.invoke('system:openScreenRecordingSettings'),
+
+  minimizeWindow: (): void =>
+    ipcRenderer.send('window:minimize'),
 })
 
 export type CaptureSource = {

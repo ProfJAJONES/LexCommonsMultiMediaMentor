@@ -515,6 +515,19 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
     }
   })
 
+  ipcMain.handle('permissions:getScreenRecordingStatus', () => {
+    if (process.platform !== 'darwin') return 'granted'
+    return systemPreferences.getMediaAccessStatus('screen')
+  })
+
+  ipcMain.handle('system:openScreenRecordingSettings', async () => {
+    await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+  })
+
+  ipcMain.on('window:minimize', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize()
+  })
+
   ipcMain.handle('permissions:requestMedia', async () => {
     if (process.platform !== 'darwin') return { camera: true, microphone: true }
     // On macOS 15+ permission prompts are non-blocking banners — askForMediaAccess
