@@ -88,27 +88,28 @@ export function useScreenRecorder() {
     setAudioError(null)
     pendingAudioRef.current = audioStream
 
-    // Try desktopCapturer first — works reliably when screen recording is granted
+    // desktopCapturer.getSources() is the reliable path on macOS — it requires
+    // screen recording permission to be granted in System Settings first.
+    // On first launch the main process triggers the TCC prompt; once granted,
+    // subsequent calls return the real list of screens and windows.
     let captureSources: CaptureSource[] = []
     try {
       captureSources = await window.api.getCaptureSources()
     } catch { /* ignore */ }
 
     if (captureSources.length > 0) {
-      // Show our own picker so the user can choose which screen/window
       setSources(captureSources)
       setRecorderState('picking')
       return
     }
 
-    // No sources from desktopCapturer — fall back to native system picker
-    setRecorderState('picking')
-    try {
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
-      await beginRecording(displayStream, audioStream)
-    } catch {
-      setRecorderState('idle')
-    }
+    // No sources — screen recording permission is not yet granted.
+    // Show instructions so the user can enable it in System Settings.
+    const screenStatus = 'getScreenRecordingStatus' in window.api
+      ? await (window.api as Record<string, unknown> & { getScreenRecordingStatus: () => Promise<string> }).getScreenRecordingStatus()
+      : 'unknown'
+    setAudioError(`screen-recording-denied:${screenStatus}`)
+    setRecorderState('idle')
   }, [beginRecording])
 
   const cancelPicker = useCallback(() => {
