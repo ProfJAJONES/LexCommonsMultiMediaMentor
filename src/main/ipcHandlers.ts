@@ -1,8 +1,25 @@
 import { IpcMain, Dialog, shell, desktopCapturer, app, BrowserWindow, systemPreferences } from 'electron'
-import { readFileSync, writeFileSync, unlinkSync } from 'fs'
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs'
 import { join, basename, extname, resolve, normalize } from 'path'
 import { homedir } from 'os'
 import { tmpdir } from 'os'
+
+// ── Persistent key-value store backed by a JSON file in userData ──────────────
+// localStorage is origin-scoped (localhost:5173 in dev vs file:// in prod),
+// so the API key saved in dev disappears in the packaged app. This store
+// always writes to the same path regardless of origin.
+function getStorePath() {
+  return join(app.getPath('userData'), 'app-settings.json')
+}
+function readStore(): Record<string, string> {
+  try {
+    if (!existsSync(getStorePath())) return {}
+    return JSON.parse(readFileSync(getStorePath(), 'utf-8'))
+  } catch { return {} }
+}
+function writeStore(data: Record<string, string>) {
+  try { writeFileSync(getStorePath(), JSON.stringify(data), 'utf-8') } catch { /* ignore */ }
+}
 import ffmpegStatic from 'ffmpeg-static'
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
@@ -522,6 +539,20 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
 
   ipcMain.handle('system:openScreenRecordingSettings', async () => {
     await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+  })
+
+  // Origin-independent persistent store — survives dev↔prod switches
+  ipcMain.handle('store:get', (_event, key: string) => {
+    return readStore()[key] ?? null
+  })
+  ipcMain.handle('store:getAll', () => {
+    return readStore()
+  })
+  ipcMain.handle('store:set', (_event, key: string, value: string | null) => {
+    const data = readStore()
+    if (value === null || value === undefined) delete data[key]
+    else data[key] = value
+    writeStore(data)
   })
 
   ipcMain.on('window:minimize', (event) => {

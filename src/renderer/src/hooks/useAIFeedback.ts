@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type { PitchSample, DecibelSample, FeedbackComment, FrameSample } from '../types'
 import type { Domain } from './useDomain'
 import { DOMAIN_CONFIG } from './useDomain'
@@ -160,7 +160,6 @@ export function useAIFeedback() {
   )
   const [apiKey, setApiKey] = useState(() => {
     const p = (localStorage.getItem('mm_ai_provider') as AIProvider) ?? 'anthropic'
-    // Per-provider keys take precedence; fall back to legacy single-slot key (migration)
     return localStorage.getItem(`mm_ai_key_${p}`)
       ?? localStorage.getItem('mm_ai_key')
       ?? localStorage.getItem('anthropic_api_key')
@@ -175,16 +174,39 @@ export function useAIFeedback() {
   })
   const abortRef = useRef<AbortController | null>(null)
 
+  // On mount, load from the IPC store (origin-independent JSON file).
+  // This migrates keys saved in dev (localhost:5173 localStorage) to the packaged
+  // app (file:// localStorage), and vice versa, by always writing through both.
+  useEffect(() => {
+    window.api.storeGetAll().then((stored: Record<string, string>) => {
+      const p = (stored['mm_ai_provider'] as AIProvider) ?? provider
+      const k = stored[`mm_ai_key_${p}`] ?? stored['mm_ai_key'] ?? stored['anthropic_api_key'] ?? ''
+      if (p !== provider) setProvider(p)
+      if (k && k !== apiKey) setApiKey(k)
+      if (stored['mm_ai_role'] && stored['mm_ai_role'] !== role) setRole(stored['mm_ai_role'] as UserRole)
+      if (stored['mm_ai_scope']) {
+        const s = parseInt(stored['mm_ai_scope'], 10)
+        if (s >= 1 && s <= 5 && s !== knowledgeScope) setKnowledgeScope(s as KnowledgeScope)
+      }
+    }).catch(() => { /* IPC unavailable — rely on localStorage only */ })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const saveApiKey = useCallback((key: string) => {
     setApiKey(key)
-    if (key) localStorage.setItem(`mm_ai_key_${provider}`, key)
-    else localStorage.removeItem(`mm_ai_key_${provider}`)
+    // Write to both localStorage (fast, same-origin reads) and IPC store (cross-origin)
+    if (key) {
+      localStorage.setItem(`mm_ai_key_${provider}`, key)
+      window.api.storeSet(`mm_ai_key_${provider}`, key)
+    } else {
+      localStorage.removeItem(`mm_ai_key_${provider}`)
+      window.api.storeSet(`mm_ai_key_${provider}`, null)
+    }
   }, [provider])
 
   const saveProvider = useCallback((p: AIProvider) => {
     setProvider(p)
     localStorage.setItem('mm_ai_provider', p)
-    // Switch active key to whatever is stored for the new provider
+    window.api.storeSet('mm_ai_provider', p)
     const storedKey = localStorage.getItem(`mm_ai_key_${p}`) ?? ''
     setApiKey(storedKey)
   }, [])
@@ -192,11 +214,13 @@ export function useAIFeedback() {
   const saveRole = useCallback((r: UserRole) => {
     setRole(r)
     localStorage.setItem('mm_ai_role', r)
+    window.api.storeSet('mm_ai_role', r)
   }, [])
 
   const saveKnowledgeScope = useCallback((s: KnowledgeScope) => {
     setKnowledgeScope(s)
     localStorage.setItem('mm_ai_scope', String(s))
+    window.api.storeSet('mm_ai_scope', String(s))
   }, [])
 
   const send = useCallback(async (

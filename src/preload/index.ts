@@ -62,6 +62,15 @@ contextBridge.exposeInMainWorld('api', {
 
   minimizeWindow: (): void =>
     ipcRenderer.send('window:minimize'),
+
+  storeGet: (key: string): Promise<string | null> =>
+    ipcRenderer.invoke('store:get', key),
+
+  storeGetAll: (): Promise<Record<string, string>> =>
+    ipcRenderer.invoke('store:getAll'),
+
+  storeSet: (key: string, value: string | null): Promise<void> =>
+    ipcRenderer.invoke('store:set', key, value),
 })
 
 export type CaptureSource = {

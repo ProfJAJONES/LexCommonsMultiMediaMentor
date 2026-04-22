@@ -46,6 +46,11 @@ declare global {
       openAudioMidiSetup: () => Promise<string | null>
       getMediaPermissions: () => Promise<{ camera: string; microphone: string }>
       requestMediaAccess: () => Promise<{ camera: boolean; microphone: boolean }>
+      getScreenRecordingStatus: () => Promise<string>
+      openScreenRecordingSettings: () => Promise<void>
+      storeGet: (key: string) => Promise<string | null>
+      storeGetAll: () => Promise<Record<string, string>>
+      storeSet: (key: string, value: string | null) => Promise<void>
       minimizeWindow: () => void
     }
   }
@@ -270,6 +275,11 @@ export default function App() {
   const ai = useAIFeedback()
   // Keep latest AI messages in a ref so the close handler always sees current state
   useEffect(() => { aiMessagesRef.current = ai.state.messages }, [ai.state.messages])
+  // When the IPC store loads the API key (async, may arrive after first render),
+  // auto-close the settings drawer so the user isn't asked to enter it again.
+  useEffect(() => {
+    if (ai.apiKey) setShowSettingsDrawer(false)
+  }, [ai.apiKey])
 
   function stopWebcam() {
     stopAudio()
