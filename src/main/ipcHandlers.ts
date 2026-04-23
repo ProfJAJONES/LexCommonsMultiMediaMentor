@@ -42,16 +42,23 @@ function getFfmpegPath(): string {
 export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
   // List available screens and windows for screen recording
   ipcMain.handle('desktop:getSources', async () => {
-    const sources = await desktopCapturer.getSources({
-      types: ['window', 'screen'],
-      thumbnailSize: { width: 320, height: 200 },
-      fetchWindowIcons: true
+    // fetchWindowIcons can fail on macOS 15 — omit it so getSources never throws.
+    // Request screens first; if that returns nothing, include windows too.
+    let sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 320, height: 200 }
     })
+    if (sources.length === 0) {
+      sources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 320, height: 200 }
+      })
+    }
     return sources.map(s => ({
       id: s.id,
       name: s.name,
       thumbnail: s.thumbnail.toDataURL(),
-      appIcon: s.appIcon?.toDataURL() ?? null
+      appIcon: null
     }))
   })
 

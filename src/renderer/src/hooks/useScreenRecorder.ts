@@ -90,12 +90,13 @@ export function useScreenRecorder() {
 
     // desktopCapturer.getSources() is the reliable path on macOS — it requires
     // screen recording permission to be granted in System Settings first.
-    // On first launch the main process triggers the TCC prompt; once granted,
-    // subsequent calls return the real list of screens and windows.
     let captureSources: CaptureSource[] = []
+    let sourcesError = ''
     try {
       captureSources = await window.api.getCaptureSources()
-    } catch { /* ignore */ }
+    } catch (e) {
+      sourcesError = e instanceof Error ? e.message : String(e)
+    }
 
     if (captureSources.length > 0) {
       setSources(captureSources)
@@ -103,12 +104,17 @@ export function useScreenRecorder() {
       return
     }
 
-    // No sources — screen recording permission is not yet granted.
-    // Show instructions so the user can enable it in System Settings.
+    // No sources — check TCC status and surface a specific message.
     const screenStatus = 'getScreenRecordingStatus' in window.api
       ? await (window.api as Record<string, unknown> & { getScreenRecordingStatus: () => Promise<string> }).getScreenRecordingStatus()
       : 'unknown'
-    setAudioError(`screen-recording-denied:${screenStatus}`)
+
+    if (sourcesError) {
+      // getSources threw — show the real error so we can debug it
+      setAudioError(`screen-recording-error:${sourcesError} (TCC: ${screenStatus})`)
+    } else {
+      setAudioError(`screen-recording-denied:${screenStatus}`)
+    }
     setRecorderState('idle')
   }, [beginRecording])
 
