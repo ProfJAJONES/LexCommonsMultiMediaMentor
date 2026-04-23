@@ -88,15 +88,11 @@ export function useScreenRecorder() {
     setAudioError(null)
     pendingAudioRef.current = audioStream
 
-    // desktopCapturer.getSources() is the reliable path on macOS — it requires
-    // screen recording permission to be granted in System Settings first.
+    // ── Path 1: desktopCapturer.getSources() — shows our custom source picker ──
     let captureSources: CaptureSource[] = []
-    let sourcesError = ''
     try {
       captureSources = await window.api.getCaptureSources()
-    } catch (e) {
-      sourcesError = e instanceof Error ? e.message : String(e)
-    }
+    } catch { /* fall through to path 2 */ }
 
     if (captureSources.length > 0) {
       setSources(captureSources)
@@ -104,18 +100,30 @@ export function useScreenRecorder() {
       return
     }
 
-    // No sources — check TCC status and surface a specific message.
-    const screenStatus = 'getScreenRecordingStatus' in window.api
-      ? await (window.api as Record<string, unknown> & { getScreenRecordingStatus: () => Promise<string> }).getScreenRecordingStatus()
-      : 'unknown'
-
-    if (sourcesError) {
-      // getSources threw — show the real error so we can debug it
-      setAudioError(`screen-recording-error:${sourcesError} (TCC: ${screenStatus})`)
-    } else {
-      setAudioError(`screen-recording-denied:${screenStatus}`)
+    // ── Path 2: native getDisplayMedia system picker ───────────────────────────
+    // getSources returned empty (permission issue or macOS 15 behaviour change).
+    // Fall back to the OS-native screen picker which works regardless of whether
+    // desktopCapturer.getSources() is available. The main process handles this
+    // via setDisplayMediaRequestHandler with useSystemPicker:true.
+    try {
+      setRecorderState('picking') // show a "loading" state while picker is open
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 } as MediaTrackConstraints,
+        audio: false
+      })
+      await beginRecording(displayStream, audioStream)
+      return
+    } catch (e) {
+      setRecorderState('idle')
+      // User cancelled — no error needed
+      if (e instanceof Error && e.name === 'AbortError') return
+      // Real failure — show what went wrong
+      const screenStatus = 'getScreenRecordingStatus' in window.api
+        ? await (window.api as Record<string, unknown> & { getScreenRecordingStatus: () => Promise<string> }).getScreenRecordingStatus()
+        : 'unknown'
+      const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e)
+      setAudioError(`screen-recording-error:${msg} (TCC: ${screenStatus})`)
     }
-    setRecorderState('idle')
   }, [beginRecording])
 
   const cancelPicker = useCallback(() => {
