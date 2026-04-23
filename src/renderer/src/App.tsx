@@ -333,10 +333,44 @@ export default function App() {
     // Call getUserMedia directly — this is what triggers the macOS TCC permission
     // prompt in a packaged app. A pre-flight status check blocks the prompt from
     // ever appearing (macOS won't show it if we return before getUserMedia).
+    //
+    // Use 'ideal' (not 'exact') for deviceId so that if the ID enumerated before
+    // TCC was granted is a placeholder, getUserMedia falls back to any available
+    // camera instead of throwing OverconstrainedError.
+    const openStream = async (): Promise<MediaStream> => {
+      const videoConstraint = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
+      const audioConstraint = selectedMicId ? { deviceId: { ideal: selectedMicId } } : true
+      try {
+        return await navigator.mediaDevices.getUserMedia({ video: videoConstraint, audio: audioConstraint })
+      } catch (firstErr) {
+        // If the constrained request failed and we had device IDs, retry without them
+        if (selectedCameraId || selectedMicId) {
+          return await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        }
+        throw firstErr
+      }
+    }
+
     try {
-      const videoConstraint = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : true
-      const audioConstraint = selectedMicId ? { deviceId: { exact: selectedMicId } } : true
-      const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint, audio: audioConstraint })
+      const stream = await openStream()
+
+      // Re-enumerate now that camera permission is confirmed — device labels and
+      // real persistent IDs are only available after permission is granted.
+      const devs = await navigator.mediaDevices.enumerateDevices()
+      const mics = devs.filter(d => d.kind === 'audioinput')
+      const cams = devs.filter(d => d.kind === 'videoinput')
+      setMicDevices(mics)
+      setCameraDevices(cams)
+      const activeCam = stream.getVideoTracks()[0]
+      if (activeCam) {
+        const matchedCam = cams.find(c => c.label === activeCam.label)
+        if (matchedCam) setSelectedCameraId(matchedCam.deviceId)
+      }
+      const activeMic = stream.getAudioTracks()[0]
+      if (activeMic) {
+        const matchedMic = mics.find(m => m.label === activeMic.label)
+        if (matchedMic) setSelectedMicId(matchedMic.deviceId)
+      }
 
       webcamStreamRef.current = stream
       setWebcamStream(stream)
@@ -348,20 +382,19 @@ export default function App() {
       setCurrentTime(0)
       setMediaMode('webcam')
       startAudio(audioStream ?? undefined)
-      const devs = await navigator.mediaDevices.enumerateDevices()
-      setMicDevices(devs.filter(d => d.kind === 'audioinput'))
     } catch (e) {
       // getUserMedia failed — check TCC status to give an accurate error message
+      const errName = e instanceof Error ? e.name : 'UnknownError'
+      const errMsg = e instanceof Error ? e.message : String(e)
       const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
       const denied = perms.camera === 'denied' || perms.microphone === 'denied'
       const notDetermined = perms.camera === 'not-determined' || perms.microphone === 'not-determined'
       if (denied) {
-        setWebcamError('Camera or microphone is blocked. Open System Settings → Privacy & Security → Camera (and Microphone), enable this app, then restart it.')
+        setWebcamError(`Camera or microphone is blocked (${errName}). Open System Settings → Privacy & Security → Camera, enable this app, then restart it.`)
       } else if (notDetermined) {
-        setWebcamError('Camera access requested — if you see a permission banner, click Allow, then click Webcam again.')
+        setWebcamError(`Camera access requested (${errName}) — if you see a permission banner, click Allow, then click Webcam again.`)
       } else {
-        const msg = e instanceof Error ? e.message : String(e)
-        setWebcamError(`Could not open camera — it may be in use by another app. Close FaceTime, Zoom, or other camera apps and try again. (${msg})`)
+        setWebcamError(`Camera error: ${errName} — ${errMsg}. Camera may be in use by another app (FaceTime, Zoom). Camera: ${perms.camera}, Mic: ${perms.microphone}.`)
       }
     } finally {
       mediaLoadingRef.current = false
@@ -1110,7 +1143,7 @@ ${ann.comments.length === 0
             {mediaMode === 'webcam' ? '● Live' : '📷 Webcam'}
           </button>
           {webcamError && (
-            <span style={{ color: '#dc2626', fontSize: 11, maxWidth: 260 }}>{webcamError}</span>
+            <span style={{ color: '#dc2626', fontSize: 11, maxWidth: 360, whiteSpace: 'normal', lineHeight: 1.4 }}>{webcamError}</span>
           )}
           {fileName && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
