@@ -330,32 +330,41 @@ export default function App() {
     prepareAudio()  // create AudioContext now, within the user gesture window
     setAudioSource('video')
 
-    // Call getUserMedia directly — this is what triggers the macOS TCC permission
-    // prompt in a packaged app. A pre-flight status check blocks the prompt from
-    // ever appearing (macOS won't show it if we return before getUserMedia).
-    //
-    // Use 'ideal' (not 'exact') for deviceId so that if the ID enumerated before
-    // TCC was granted is a placeholder, getUserMedia falls back to any available
-    // camera instead of throwing OverconstrainedError.
-    const openStream = async (): Promise<MediaStream> => {
-      const videoConstraint = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
-      const audioConstraint = selectedMicId ? { deviceId: { ideal: selectedMicId } } : true
+    // Open the webcam with a multi-step fallback strategy so a blocked mic or a
+    // stale device ID doesn't prevent the camera from showing at all.
+    // Returns { stream, hasAudio } — hasAudio=false when mic was unavailable.
+    const openStream = async (): Promise<{ stream: MediaStream; hasAudio: boolean }> => {
+      // 1. Try camera + mic with preferred device IDs
       try {
-        return await navigator.mediaDevices.getUserMedia({ video: videoConstraint, audio: audioConstraint })
-      } catch (firstErr) {
-        // If the constrained request failed and we had device IDs, retry without them
-        if (selectedCameraId || selectedMicId) {
-          return await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-        }
-        throw firstErr
-      }
+        const videoConstraint = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
+        const audioConstraint = selectedMicId ? { deviceId: { ideal: selectedMicId } } : true
+        const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint, audio: audioConstraint })
+        return { stream, hasAudio: true }
+      } catch { /* fall through */ }
+
+      // 2. Try camera + mic with no device preferences
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        return { stream, hasAudio: true }
+      } catch { /* fall through */ }
+
+      // 3. Try camera only — mic may be blocked, but at least show video
+      try {
+        const videoConstraint = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
+        const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint })
+        return { stream, hasAudio: false }
+      } catch { /* fall through */ }
+
+      // 4. Last resort: plain camera, no constraints
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      return { stream, hasAudio: false }
     }
 
     try {
-      const stream = await openStream()
+      const { stream, hasAudio } = await openStream()
 
-      // Re-enumerate now that camera permission is confirmed — device labels and
-      // real persistent IDs are only available after permission is granted.
+      // Re-enumerate now that permission is confirmed — real labels/IDs only
+      // appear after TCC is granted.
       const devs = await navigator.mediaDevices.enumerateDevices()
       const mics = devs.filter(d => d.kind === 'audioinput')
       const cams = devs.filter(d => d.kind === 'videoinput')
@@ -382,19 +391,20 @@ export default function App() {
       setCurrentTime(0)
       setMediaMode('webcam')
       startAudio(audioStream ?? undefined)
+      if (!hasAudio) {
+        setWebcamError('Webcam open (video only) — microphone could not be accessed. Check System Settings → Privacy & Security → Microphone.')
+      }
     } catch (e) {
-      // getUserMedia failed — check TCC status to give an accurate error message
+      // All four attempts failed — check TCC status for an accurate message.
       const errName = e instanceof Error ? e.name : 'UnknownError'
       const errMsg = e instanceof Error ? e.message : String(e)
       const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
-      const denied = perms.camera === 'denied' || perms.microphone === 'denied'
-      const notDetermined = perms.camera === 'not-determined' || perms.microphone === 'not-determined'
-      if (denied) {
-        setWebcamError(`Camera or microphone is blocked (${errName}). Open System Settings → Privacy & Security → Camera, enable this app, then restart it.`)
-      } else if (notDetermined) {
-        setWebcamError(`Camera access requested (${errName}) — if you see a permission banner, click Allow, then click Webcam again.`)
+      if (perms.camera === 'denied') {
+        setWebcamError(`Camera blocked (${errName}). In System Settings → Privacy & Security → Camera, enable "LexCommons Multimedia Mentor", then restart the app.`)
+      } else if (perms.camera === 'not-determined') {
+        setWebcamError(`Camera access needed (${errName}). If you see a permission banner, click Allow, then click Webcam again.`)
       } else {
-        setWebcamError(`Camera error: ${errName} — ${errMsg}. Camera may be in use by another app (FaceTime, Zoom). Camera: ${perms.camera}, Mic: ${perms.microphone}.`)
+        setWebcamError(`Camera failed: ${errName} — ${errMsg}  |  Camera TCC: ${perms.camera}, Mic TCC: ${perms.microphone}`)
       }
     } finally {
       mediaLoadingRef.current = false
