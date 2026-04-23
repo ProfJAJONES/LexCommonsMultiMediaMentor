@@ -330,38 +330,40 @@ export default function App() {
     prepareAudio()  // create AudioContext now, within the user gesture window
     setAudioSource('video')
 
-    // Open the webcam with a multi-step fallback strategy so a blocked mic or a
-    // stale device ID doesn't prevent the camera from showing at all.
-    // Returns { stream, hasAudio } — hasAudio=false when mic was unavailable.
-    const openStream = async (): Promise<{ stream: MediaStream; hasAudio: boolean }> => {
-      // 1. Try camera + mic with preferred device IDs
-      try {
-        const videoConstraint = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
-        const audioConstraint = selectedMicId ? { deviceId: { ideal: selectedMicId } } : true
-        const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint, audio: audioConstraint })
-        return { stream, hasAudio: true }
-      } catch { /* fall through */ }
+    // Open the webcam. Get video and audio in separate getUserMedia calls so
+    // a mic TCC denial never blocks the camera, and a separate audio-only call
+    // can trigger its own TCC prompt if the combined call was denied.
+    let videoStream: MediaStream | null = null
+    let audioStream: MediaStream | null = null
 
-      // 2. Try camera + mic with no device preferences
+    // ── Video ──────────────────────────────────────────────────────────────────
+    try {
+      const vc = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
+      videoStream = await navigator.mediaDevices.getUserMedia({ video: vc, audio: false })
+    } catch {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-        return { stream, hasAudio: true }
-      } catch { /* fall through */ }
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      } catch { /* handled below */ }
+    }
 
-      // 3. Try camera only — mic may be blocked, but at least show video
+    // ── Audio (separate call so its TCC prompt fires independently) ────────────
+    try {
+      const ac = selectedMicId ? { deviceId: { ideal: selectedMicId } } : true
+      audioStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: ac })
+    } catch {
       try {
-        const videoConstraint = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
-        const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint })
-        return { stream, hasAudio: false }
-      } catch { /* fall through */ }
-
-      // 4. Last resort: plain camera, no constraints
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-      return { stream, hasAudio: false }
+        audioStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+      } catch { /* mic unavailable */ }
     }
 
     try {
-      const { stream, hasAudio } = await openStream()
+      if (!videoStream) throw new Error('Could not open camera')
+
+      // Merge tracks into a single stream for the video element + recorder
+      const combined = new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...(audioStream ? audioStream.getAudioTracks() : [])
+      ])
 
       // Re-enumerate now that permission is confirmed — real labels/IDs only
       // appear after TCC is granted.
@@ -370,27 +372,28 @@ export default function App() {
       const cams = devs.filter(d => d.kind === 'videoinput')
       setMicDevices(mics)
       setCameraDevices(cams)
-      const activeCam = stream.getVideoTracks()[0]
+      const activeCam = combined.getVideoTracks()[0]
       if (activeCam) {
         const matchedCam = cams.find(c => c.label === activeCam.label)
         if (matchedCam) setSelectedCameraId(matchedCam.deviceId)
       }
-      const activeMic = stream.getAudioTracks()[0]
+      const activeMic = combined.getAudioTracks()[0]
       if (activeMic) {
         const matchedMic = mics.find(m => m.label === activeMic.label)
         if (matchedMic) setSelectedMicId(matchedMic.deviceId)
       }
 
-      webcamStreamRef.current = stream
-      setWebcamStream(stream)
-      const audioTracks = stream.getAudioTracks()
-      const audioStream = audioTracks.length > 0 ? new MediaStream(audioTracks) : null
-      if (audioStream) setWebcamAudioStream(audioStream)
+      const hasAudio = combined.getAudioTracks().length > 0
+
+      webcamStreamRef.current = combined
+      setWebcamStream(combined)
+      const micOnly = hasAudio ? new MediaStream(combined.getAudioTracks()) : null
+      if (micOnly) setWebcamAudioStream(micOnly)
       setMediaPath(null)
       setFileName('Live Webcam')
       setCurrentTime(0)
       setMediaMode('webcam')
-      startAudio(audioStream ?? undefined)
+      startAudio(micOnly ?? undefined)
       if (!hasAudio) {
         setWebcamError('Webcam open (video only) — microphone could not be accessed. Check System Settings → Privacy & Security → Microphone.')
       }
