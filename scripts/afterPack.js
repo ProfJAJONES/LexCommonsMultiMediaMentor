@@ -42,16 +42,23 @@ exports.default = async function afterPack(context) {
         ['NSCameraUsageDescription', 'LexCommons Multimedia Mentor uses your camera for webcam practice sessions.'],
         ['NSMicrophoneUsageDescription', 'LexCommons Multimedia Mentor uses your microphone for real-time pitch and volume analysis.'],
       ]
+      let injected = 0
       for (const [key, value] of keysToInject) {
         if (!plist.includes(key)) {
+          // Match the closing </dict> regardless of leading whitespace
           plist = plist.replace(
-            '</dict>\n</plist>',
-            `\t<key>${key}</key>\n\t<string>${value}</string>\n</dict>\n</plist>`
+            /(\s*<\/dict>\s*<\/plist>\s*)$/,
+            `\n\t<key>${key}</key>\n\t<string>${value}</string>$1`
           )
+          injected++
         }
       }
       fs.writeFileSync(helperRendererPlist, plist, 'utf-8')
-      console.log(`  • injected camera/mic usage descriptions into Renderer helper Info.plist`)
+      // Verify the injection actually happened
+      const verify = fs.readFileSync(helperRendererPlist, 'utf-8')
+      const ok = keysToInject.every(([k]) => verify.includes(k))
+      console.log(`  • Renderer helper Info.plist: injected ${injected} key(s), verified=${ok}`)
+      if (!ok) console.warn('  • WARNING: injection verification failed — check plist format')
     } catch (e) {
       console.warn('  • failed to inject usage descriptions:', e.message)
     }
