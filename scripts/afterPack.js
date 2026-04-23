@@ -26,8 +26,9 @@ exports.default = async function afterPack(context) {
 
   // Inject camera/mic usage descriptions into the Renderer helper Info.plist.
   // getUserMedia runs inside the Renderer helper process. macOS TCC checks that
-  // process's Info.plist for NSCameraUsageDescription before showing a prompt —
-  // without it, the OS silently returns NotAllowedError regardless of main-app TCC.
+  // process's Info.plist for NS*UsageDescription before showing a permission prompt —
+  // without these keys the OS silently returns NotAllowedError regardless of main-app TCC.
+  // Use Node.js string injection (not PlistBuddy) so it works in all CI environments.
   const helperRendererPlist = path.join(
     appPath,
     'Contents/Frameworks',
@@ -36,13 +37,23 @@ exports.default = async function afterPack(context) {
   )
   if (fs.existsSync(helperRendererPlist)) {
     try {
-      const cameraDesc = 'LexCommons Multimedia Mentor uses your camera for webcam practice sessions.'
-      const micDesc = 'LexCommons Multimedia Mentor uses your microphone for real-time pitch and volume analysis.'
-      execSync(`/usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string '${cameraDesc}'" "${helperRendererPlist}"`, { stdio: 'pipe' })
-      execSync(`/usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string '${micDesc}'" "${helperRendererPlist}"`, { stdio: 'pipe' })
+      let plist = fs.readFileSync(helperRendererPlist, 'utf-8')
+      const keysToInject = [
+        ['NSCameraUsageDescription', 'LexCommons Multimedia Mentor uses your camera for webcam practice sessions.'],
+        ['NSMicrophoneUsageDescription', 'LexCommons Multimedia Mentor uses your microphone for real-time pitch and volume analysis.'],
+      ]
+      for (const [key, value] of keysToInject) {
+        if (!plist.includes(key)) {
+          plist = plist.replace(
+            '</dict>\n</plist>',
+            `\t<key>${key}</key>\n\t<string>${value}</string>\n</dict>\n</plist>`
+          )
+        }
+      }
+      fs.writeFileSync(helperRendererPlist, plist, 'utf-8')
       console.log(`  • injected camera/mic usage descriptions into Renderer helper Info.plist`)
     } catch (e) {
-      console.warn('  • failed to inject usage descriptions (non-fatal):', e.message)
+      console.warn('  • failed to inject usage descriptions:', e.message)
     }
   }
 
