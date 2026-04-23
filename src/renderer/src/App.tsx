@@ -1286,6 +1286,26 @@ ${ann.comments.length === 0
               )}
             </div>
           )}
+          {/* Screen recording permission error — shown in idle state when openPicker finds no sources */}
+          {screen.recorderState === 'idle' && screen.audioError?.startsWith('screen-recording-denied:') && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', fontSize: 12, marginTop: 4 }}>
+              <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: 4 }}>Screen Recording permission not granted</div>
+              <div style={{ color: '#7f1d1d', marginBottom: 6 }}>
+                macOS is blocking LexCommons from capturing other windows. To record your screen:
+              </div>
+              <ol style={{ color: '#7f1d1d', margin: '0 0 6px 16px', padding: 0, lineHeight: 1.6 }}>
+                <li>Click <strong>Open Settings</strong> below</li>
+                <li>Find <strong>LexCommons Multimedia Mentor</strong> and enable the toggle</li>
+                <li>Restart this app, then try recording again</li>
+              </ol>
+              <button
+                onClick={() => (window.api as Record<string, unknown> & { openScreenRecordingSettings: () => void }).openScreenRecordingSettings()}
+                style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Open Screen Recording Settings
+              </button>
+            </div>
+          )}
           {(screen.recorderState === 'recording' || screen.recorderState === 'paused' || screen.recorderState === 'saving') && (
             <>
               <RecordingIndicator
