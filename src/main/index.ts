@@ -30,8 +30,16 @@ function createWindow(): void {
     }
   })
 
-  win.on('ready-to-show', () => {
+  win.on('ready-to-show', async () => {
     win.show()
+    // Ask for permissions sequentially AFTER the window is visible and frontmost.
+    // Simultaneous requests cause macOS to queue them — the user clicks Allow on
+    // camera while the mic dialog is hidden, then misses/dismisses the mic dialog.
+    // Sequential + awaited ensures each dialog is the only one on screen.
+    if (process.platform === 'darwin') {
+      await systemPreferences.askForMediaAccess('camera').catch(() => {})
+      await systemPreferences.askForMediaAccess('microphone').catch(() => {})
+    }
   })
 
   // Allow the renderer to use camera and microphone via getUserMedia
@@ -106,17 +114,11 @@ app.whenReady().then(async () => {
 
   createWindow()
 
-  // Request camera and microphone access after the window is visible so macOS
-  // attaches the TCC prompt to a real window. Must happen after createWindow()
-  // so the app has a frontmost window when the system dialog appears.
+  // Trigger the macOS screen recording TCC prompt on first launch.
+  // desktopCapturer.getSources() returns empty but causes macOS to show the
+  // "LexCommons wants to record your screen" banner — so permission is in place
+  // by the time the user clicks Record Screen.
   if (process.platform === 'darwin') {
-    systemPreferences.askForMediaAccess('camera').catch(() => {})
-    systemPreferences.askForMediaAccess('microphone').catch(() => {})
-
-    // Trigger the macOS screen recording TCC prompt on first launch.
-    // desktopCapturer.getSources() returns empty but causes macOS to show the
-    // "LexCommons wants to record your screen" banner — so permission is in place
-    // by the time the user clicks Record Screen.
     const screenStatus = systemPreferences.getMediaAccessStatus('screen')
     if (screenStatus === 'not-determined') {
       desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } }).catch(() => {})
