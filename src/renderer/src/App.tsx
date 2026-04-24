@@ -401,7 +401,11 @@ export default function App() {
       startAudio(micOnly ?? undefined)
       if (!hasAudio) {
         const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
-        setWebcamError(`Webcam open (video only) — mic error: ${micError} | TCC mic: ${perms.microphone}, cam: ${perms.camera}`)
+        if (perms.microphone === 'denied') {
+          setWebcamError('mic-denied')
+        } else {
+          setWebcamError(`Webcam open (video only) — mic unavailable (${micError || 'unknown error'})`)
+        }
       }
     } catch (e) {
       // All four attempts failed — check TCC status for an accurate message.
@@ -1161,7 +1165,37 @@ ${ann.comments.length === 0
           >
             {mediaMode === 'webcam' ? '● Live' : '📷 Webcam'}
           </button>
-          {webcamError && (
+          {webcamError === 'mic-denied' && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ color: '#dc2626', fontSize: 11 }}>Microphone blocked —</span>
+              <button
+                onClick={async () => {
+                  const result = await window.api.requestMediaAccess()
+                  if (result.microphone) {
+                    setWebcamError(null)
+                    handleWebcam()
+                  } else {
+                    setWebcamError('mic-settings-opened')
+                  }
+                }}
+                style={{ fontSize: 11, padding: '2px 8px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
+              >
+                Fix Microphone Access
+              </button>
+            </span>
+          )}
+          {webcamError === 'mic-settings-opened' && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ color: '#b45309', fontSize: 11 }}>Enable "LexCommons Multimedia Mentor" in the System Settings window that just opened, then click</span>
+              <button
+                onClick={() => { setWebcamError(null); handleWebcam() }}
+                style={{ fontSize: 11, padding: '2px 8px', background: '#059669', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
+              >
+                Try Again
+              </button>
+            </span>
+          )}
+          {webcamError && webcamError !== 'mic-denied' && (
             <span style={{ color: '#dc2626', fontSize: 11, maxWidth: 360, whiteSpace: 'normal', lineHeight: 1.4 }}>{webcamError}</span>
           )}
           {fileName && (

@@ -568,10 +568,19 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
 
   ipcMain.handle('permissions:requestMedia', async () => {
     if (process.platform !== 'darwin') return { camera: true, microphone: true }
-    // On macOS 15+ permission prompts are non-blocking banners — askForMediaAccess
-    // resolves before the user responds. Just read the current TCC status.
-    const camera = systemPreferences.getMediaAccessStatus('camera') === 'granted'
-    const microphone = systemPreferences.getMediaAccessStatus('microphone') === 'granted'
+    // Ask for access — this shows a TCC prompt if status is not-determined.
+    // If already denied, askForMediaAccess returns false and we open System Settings
+    // so the user can re-enable it manually.
+    const [camera, microphone] = await Promise.all([
+      systemPreferences.askForMediaAccess('camera'),
+      systemPreferences.askForMediaAccess('microphone')
+    ])
+    if (!microphone) {
+      await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone')
+    }
+    if (!camera) {
+      await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Camera')
+    }
     return { camera, microphone }
   })
 }
