@@ -347,13 +347,18 @@ export default function App() {
     }
 
     // ── Audio (separate call so its TCC prompt fires independently) ────────────
+    let micError = ''
     try {
       const ac = selectedMicId ? { deviceId: { ideal: selectedMicId } } : true
       audioStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: ac })
-    } catch {
+    } catch (e1) {
+      micError = e1 instanceof Error ? `${e1.name}: ${e1.message}` : String(e1)
       try {
         audioStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
-      } catch { /* mic unavailable */ }
+        micError = ''
+      } catch (e2) {
+        micError = e2 instanceof Error ? `${e2.name}: ${e2.message}` : String(e2)
+      }
     }
 
     try {
@@ -395,7 +400,8 @@ export default function App() {
       setMediaMode('webcam')
       startAudio(micOnly ?? undefined)
       if (!hasAudio) {
-        setWebcamError('Webcam open (video only) — microphone could not be accessed. Check System Settings → Privacy & Security → Microphone.')
+        const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
+        setWebcamError(`Webcam open (video only) — mic error: ${micError} | TCC mic: ${perms.microphone}, cam: ${perms.camera}`)
       }
     } catch (e) {
       // All four attempts failed — check TCC status for an accurate message.
