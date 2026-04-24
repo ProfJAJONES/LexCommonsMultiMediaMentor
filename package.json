@@ -4,6 +4,7 @@
   "description": "Oral advocacy analysis app with real-time pitch/decibel graphs, video annotation, and professor feedback",
   "main": "out/main/index.js",
   "scripts": {
+    "postinstall": "node scripts/patchElectronHelpers.js",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
