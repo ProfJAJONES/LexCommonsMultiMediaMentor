@@ -15,6 +15,12 @@
 const fs = require('fs')
 const path = require('path')
 
+// Helper plists only exist in the macOS Electron.app bundle.
+if (process.platform !== 'darwin') {
+  console.log('[patchElectronHelpers] Not macOS — skipping')
+  process.exit(0)
+}
+
 const frameworksDir = path.join(
   __dirname, '..', 'node_modules', 'electron', 'dist',
   'Electron.app', 'Contents', 'Frameworks'
@@ -32,14 +38,14 @@ const keysToInject = [
   ['NSMicrophoneUsageDescription', 'LexCommons Multimedia Mentor uses your microphone for real-time pitch and volume analysis.'],
 ]
 
-let anyMissing = false
+let anyFound = false
 for (const helper of helpers) {
   const plistPath = path.join(frameworksDir, helper, 'Contents', 'Info.plist')
   if (!fs.existsSync(plistPath)) {
     console.warn(`[patchElectronHelpers] Not found — skipping: ${helper}`)
     continue
   }
-  anyMissing = true
+  anyFound = true
 
   let plist = fs.readFileSync(plistPath, 'utf-8')
   let patched = 0
@@ -58,7 +64,7 @@ for (const helper of helpers) {
   console.log(`[patchElectronHelpers] ${helper}: injected ${patched} key(s)${patched === 0 ? ' (already patched)' : ''}`)
 }
 
-if (!anyMissing) {
+if (!anyFound) {
   console.warn('[patchElectronHelpers] No Electron helpers found — is electron installed?')
   process.exit(1)
 }
