@@ -24,28 +24,34 @@ exports.default = async function afterPack(context) {
     console.warn('  • xattr/dot_clean failed (non-fatal):', e.message)
   }
 
-  // Inject camera/mic usage descriptions into the Renderer helper Info.plist.
-  // getUserMedia runs inside the Renderer helper process. macOS TCC checks that
-  // process's Info.plist for NS*UsageDescription before showing a permission prompt —
-  // without these keys the OS silently returns NotAllowedError regardless of main-app TCC.
-  // Use Node.js string injection (not PlistBuddy) so it works in all CI environments.
-  const helperRendererPlist = path.join(
-    appPath,
-    'Contents/Frameworks',
-    `${context.packager.appInfo.productName} Helper (Renderer).app`,
-    'Contents/Info.plist'
-  )
-  if (fs.existsSync(helperRendererPlist)) {
+  // Inject camera/mic usage descriptions into ALL helper Info.plists.
+  // Audio capture in Chromium can run in any helper process (Renderer, GPU, Plugin,
+  // or the base Helper). macOS TCC checks the REQUESTING PROCESS for
+  // NS*UsageDescription before showing a permission prompt — without these keys
+  // the OS silently creates a "denied" TCC entry with no dialog, so the app never
+  // appears in System Settings → Microphone and the user cannot grant access.
+  const productName = context.packager.appInfo.productName
+  const helperNames = [
+    `${productName} Helper.app`,
+    `${productName} Helper (Renderer).app`,
+    `${productName} Helper (GPU).app`,
+    `${productName} Helper (Plugin).app`,
+  ]
+  const keysToInject = [
+    ['NSCameraUsageDescription', 'LexCommons Multimedia Mentor uses your camera for webcam practice sessions.'],
+    ['NSMicrophoneUsageDescription', 'LexCommons Multimedia Mentor uses your microphone for real-time pitch and volume analysis.'],
+  ]
+  for (const helperName of helperNames) {
+    const helperPlist = path.join(appPath, 'Contents/Frameworks', helperName, 'Contents/Info.plist')
+    if (!fs.existsSync(helperPlist)) {
+      console.warn(`  • ${helperName}: plist not found — skipping`)
+      continue
+    }
     try {
-      let plist = fs.readFileSync(helperRendererPlist, 'utf-8')
-      const keysToInject = [
-        ['NSCameraUsageDescription', 'LexCommons Multimedia Mentor uses your camera for webcam practice sessions.'],
-        ['NSMicrophoneUsageDescription', 'LexCommons Multimedia Mentor uses your microphone for real-time pitch and volume analysis.'],
-      ]
+      let plist = fs.readFileSync(helperPlist, 'utf-8')
       let injected = 0
       for (const [key, value] of keysToInject) {
         if (!plist.includes(key)) {
-          // Match the closing </dict> regardless of leading whitespace
           plist = plist.replace(
             /(\s*<\/dict>\s*<\/plist>\s*)$/,
             `\n\t<key>${key}</key>\n\t<string>${value}</string>$1`
@@ -53,14 +59,13 @@ exports.default = async function afterPack(context) {
           injected++
         }
       }
-      fs.writeFileSync(helperRendererPlist, plist, 'utf-8')
-      // Verify the injection actually happened
-      const verify = fs.readFileSync(helperRendererPlist, 'utf-8')
+      fs.writeFileSync(helperPlist, plist, 'utf-8')
+      const verify = fs.readFileSync(helperPlist, 'utf-8')
       const ok = keysToInject.every(([k]) => verify.includes(k))
-      console.log(`  • Renderer helper Info.plist: injected ${injected} key(s), verified=${ok}`)
-      if (!ok) console.warn('  • WARNING: injection verification failed — check plist format')
+      console.log(`  • ${helperName}: injected ${injected} key(s), verified=${ok}`)
+      if (!ok) console.warn(`  • WARNING: injection verification failed for ${helperName}`)
     } catch (e) {
-      console.warn('  • failed to inject usage descriptions:', e.message)
+      console.warn(`  • failed to patch ${helperName}:`, e.message)
     }
   }
 

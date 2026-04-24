@@ -573,9 +573,14 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
   // renderer helper's "denied" entry intact, which is why the mic prompt never re-fires.
   ipcMain.handle('permissions:resetRendererMicTCC', async () => {
     if (process.platform !== 'darwin') return { ok: true }
+    // Reset ALL helper bundles — audio capture can run in any of them.
+    // macOS tracks each helper separately; resetting only one leaves the others denied.
     const bundleIds = [
+      'org.lexcommons.multimedia-mentor',
+      'org.lexcommons.multimedia-mentor.helper',
       'org.lexcommons.multimedia-mentor.helper.Renderer',
-      'org.lexcommons.multimedia-mentor'
+      'org.lexcommons.multimedia-mentor.helper.GPU',
+      'org.lexcommons.multimedia-mentor.helper.Plugin',
     ]
     let reset = 0
     for (const id of bundleIds) {
