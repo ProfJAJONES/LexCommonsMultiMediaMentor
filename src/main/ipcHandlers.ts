@@ -1,4 +1,5 @@
 import { IpcMain, Dialog, shell, desktopCapturer, app, BrowserWindow, systemPreferences } from 'electron'
+import { execSync } from 'child_process'
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs'
 import { join, basename, extname, resolve, normalize } from 'path'
 import { homedir } from 'os'
@@ -564,6 +565,26 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
 
   ipcMain.on('window:minimize', (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize()
+  })
+
+  // Reset the Renderer helper's TCC microphone entry so getUserMedia can prompt again.
+  // macOS tracks org.lexcommons.multimedia-mentor.helper.Renderer SEPARATELY from the
+  // main bundle — resetting only the main bundle (as tccutil docs suggest) leaves the
+  // renderer helper's "denied" entry intact, which is why the mic prompt never re-fires.
+  ipcMain.handle('permissions:resetRendererMicTCC', async () => {
+    if (process.platform !== 'darwin') return { ok: true }
+    const bundleIds = [
+      'org.lexcommons.multimedia-mentor.helper.Renderer',
+      'org.lexcommons.multimedia-mentor'
+    ]
+    let reset = 0
+    for (const id of bundleIds) {
+      try {
+        execSync(`tccutil reset Microphone "${id}"`, { stdio: 'pipe' })
+        reset++
+      } catch { /* no entry to reset — fine */ }
+    }
+    return { ok: true, reset }
   })
 
   ipcMain.handle('permissions:requestMedia', async () => {

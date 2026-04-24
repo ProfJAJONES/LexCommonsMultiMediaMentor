@@ -46,6 +46,7 @@ declare global {
       openAudioMidiSetup: () => Promise<string | null>
       getMediaPermissions: () => Promise<{ camera: string; microphone: string }>
       requestMediaAccess: () => Promise<{ camera: boolean; microphone: boolean }>
+      resetRendererMicTCC: () => Promise<{ ok: boolean; reset?: number }>
       getScreenRecordingStatus: () => Promise<string>
       openScreenRecordingSettings: () => Promise<void>
       storeGet: (key: string) => Promise<string | null>
@@ -1170,11 +1171,23 @@ ${ann.comments.length === 0
               <span style={{ color: '#dc2626', fontSize: 11 }}>Microphone blocked —</span>
               <button
                 onClick={async () => {
-                  const result = await window.api.requestMediaAccess()
-                  if (result.microphone) {
+                  // Reset the Renderer helper's TCC entry so the OS will prompt again.
+                  // macOS tracks the helper bundle separately from the main app; clearing
+                  // only the main bundle (what tccutil docs say) leaves the helper denied.
+                  await window.api.resetRendererMicTCC().catch(() => {})
+                  // Give TCC a moment to write the reset before getUserMedia reads it.
+                  await new Promise(r => setTimeout(r, 300))
+                  // Now getUserMedia sees "not-determined" and fires a fresh OS prompt.
+                  try {
+                    const testStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+                    testStream.getTracks().forEach(t => t.stop())
+                    // Prompt was granted — restart webcam with full stream.
                     setWebcamError(null)
                     handleWebcam()
-                  } else {
+                  } catch {
+                    // User denied the prompt or something else blocked it — fall back to
+                    // opening System Settings so they can toggle access manually.
+                    await window.api.requestMediaAccess()
                     setWebcamError('mic-settings-opened')
                   }
                 }}

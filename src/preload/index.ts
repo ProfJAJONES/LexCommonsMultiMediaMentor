@@ -54,6 +54,9 @@ contextBridge.exposeInMainWorld('api', {
   requestMediaAccess: (): Promise<{ camera: boolean; microphone: boolean }> =>
     ipcRenderer.invoke('permissions:requestMedia'),
 
+  resetRendererMicTCC: (): Promise<{ ok: boolean; reset?: number }> =>
+    ipcRenderer.invoke('permissions:resetRendererMicTCC'),
+
   getScreenRecordingStatus: (): Promise<string> =>
     ipcRenderer.invoke('permissions:getScreenRecordingStatus'),
 
