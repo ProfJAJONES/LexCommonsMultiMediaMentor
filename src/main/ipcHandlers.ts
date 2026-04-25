@@ -576,11 +576,15 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
     // Reset ALL helper bundles — audio capture can run in any of them.
     // macOS tracks each helper separately; resetting only one leaves the others denied.
     const bundleIds = [
+      // Production (packaged app) bundle IDs
       'org.lexcommons.multimedia-mentor',
       'org.lexcommons.multimedia-mentor.helper',
       'org.lexcommons.multimedia-mentor.helper.Renderer',
       'org.lexcommons.multimedia-mentor.helper.GPU',
       'org.lexcommons.multimedia-mentor.helper.Plugin',
+      // Development (electron-vite dev) bundle IDs
+      'com.github.Electron',
+      'com.github.Electron.helper',
     ]
     let reset = 0
     for (const id of bundleIds) {

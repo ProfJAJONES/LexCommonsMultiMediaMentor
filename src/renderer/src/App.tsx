@@ -133,11 +133,24 @@ export default function App() {
     // Probe mic on startup so macOS fires the TCC permission banner immediately.
     // Audio-only — probing video here can leave the camera in a transient muted
     // state that interferes with the first real getUserMedia call for the webcam.
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(s => { s.getTracks().forEach(t => t.stop()); refreshMicDevices() })
-      .catch(() => { refreshMicDevices() })
+      .catch(() => {
+        // First attempt failed — TCC dialog may be in progress after a reset.
+        // Retry once after a short delay to catch the granted permission.
+        retryTimer = setTimeout(() => {
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(s => { s.getTracks().forEach(t => t.stop()) })
+            .catch(() => {})
+            .finally(() => refreshMicDevices())
+        }, 2500)
+      })
     navigator.mediaDevices.addEventListener('devicechange', refreshMicDevices)
-    return () => navigator.mediaDevices.removeEventListener('devicechange', refreshMicDevices)
+    return () => {
+      if (retryTimer !== null) clearTimeout(retryTimer)
+      navigator.mediaDevices.removeEventListener('devicechange', refreshMicDevices)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wire webcam stream to the video element — same pattern as LivePracticePanel.
@@ -1251,7 +1264,17 @@ ${ann.comments.length === 0
               <div style={{ position: 'relative' }} data-audio-picker>
                 <button
                   ref={audioPickerBtnRef}
-                  onClick={() => setShowAudioPicker(v => !v)}
+                  onClick={() => {
+                    const opening = !showAudioPicker
+                    setShowAudioPicker(v => !v)
+                    if (opening) {
+                      // Re-probe on open — triggers TCC dialog if not yet granted,
+                      // and ensures the device list is fresh.
+                      navigator.mediaDevices.getUserMedia({ audio: true })
+                        .then(s => { s.getTracks().forEach(t => t.stop()); refreshMicDevices() })
+                        .catch(() => refreshMicDevices())
+                    }
+                  }}
                   title="Choose audio source for analysis"
                   style={{ ...btnStyle(showAudioPicker ? '#0284c7' : '#475569'), fontSize: 11, padding: '5px 9px' }}
                 >
