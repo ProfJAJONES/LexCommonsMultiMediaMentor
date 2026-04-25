@@ -2,7 +2,7 @@
  * useWhisperTranscription
  *
  * Drop-in replacement for useSpeechRecognition that runs Whisper locally
- * via @xenova/transformers — no Google API keys, no network required after
+ * via @huggingface/transformers — no Google API keys, no network required after
  * the first model download (~40 MB, cached in IndexedDB).
  *
  * Interface is intentionally close to useSpeechRecognition so LivePracticePanel
@@ -22,7 +22,7 @@ async function getPipeline() {
   if (!pipelinePromise) {
     pipelinePromise = (async () => {
       // Dynamic import keeps this out of the initial bundle
-      const { pipeline, env } = await import('@xenova/transformers')
+      const { pipeline, env } = await import('@huggingface/transformers')
       // Allow the model to be fetched from HuggingFace and cached locally
       env.allowLocalModels = false
       return pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en')
