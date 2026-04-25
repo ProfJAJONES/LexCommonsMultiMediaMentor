@@ -11,6 +11,7 @@ interface Props {
   apiKey: string
   provider: AIProvider
   domain: Domain
+  selectedCameraId?: string
   onSessionData?: (messages: Array<{ speaker: string; text: string; timestamp: number }>) => void
 }
 
@@ -27,7 +28,7 @@ function speak(text: string) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function LivePracticePanel({ apiKey, provider, domain, onSessionData }: Props) {
+export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, onSessionData }: Props) {
   const characters = PRACTICE_CHARACTERS[domain]
   const [character, setCharacter] = useState<PracticeCharacter>(characters[0])
   const [ttsEnabled, setTtsEnabled] = useState(false)
@@ -125,7 +126,8 @@ export function LivePracticePanel({ apiKey, provider, domain, onSessionData }: P
       setCameraStream(null)
     } else {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        const vc = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
+        const stream = await navigator.mediaDevices.getUserMedia({ video: vc, audio: false })
         setCameraError(null)
         setCameraStream(stream)
       } catch {
