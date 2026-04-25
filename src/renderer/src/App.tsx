@@ -964,6 +964,7 @@ ${ann.comments.length === 0
               apiKey={ai.apiKey}
               provider={ai.provider}
               domain={domain}
+              selectedCameraId={selectedCameraId}
               onSessionData={msgs => { practiceMessagesRef.current = msgs }}
             />
           )}
