@@ -67,8 +67,10 @@ export function useAudioAnalysis(
 ) {
   const audioCtxRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
+  const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null)
   const videoSrcRef = useRef<MediaElementAudioSourceNode | null>(null)
   const streamSrcRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const connectedStreamRef = useRef<MediaStream | null>(null)  // tracks which stream is wired in
   const rafRef = useRef<number | null>(null)
   const lastSampleRef = useRef<number>(0)
   const smoothedPitchRef = useRef<number>(0)
@@ -97,6 +99,9 @@ export function useAudioAnalysis(
       analyser.fftSize = FFT_SIZE
       analyser.smoothingTimeConstant = 0.1
       analyser.connect(ctx.destination)
+      // Also route to a MediaStream so callers can feed it to a screen recorder
+      destNodeRef.current = ctx.createMediaStreamDestination()
+      analyser.connect(destNodeRef.current)
       analyserRef.current = analyser
     }
     return { ctx, analyser: analyserRef.current }
@@ -114,19 +119,26 @@ export function useAudioAnalysis(
     if (!videoSrcRef.current) {
       videoSrcRef.current = ctx.createMediaElementSource(video)
     }
+    // Restore speaker output for video file playback
+    try { analyser.connect(ctx.destination) } catch { /* already connected */ }
     videoSrcRef.current.connect(analyser)
   }
 
   function connectStreamSource(ctx: AudioContext, analyser: AnalyserNode, stream: MediaStream) {
-    // Disconnect old nodes first, then create + connect the new one
     disconnectAll()
+    // Silence speakers when analyzing a mic stream — routing mic to speakers causes echo
+    try { analyser.disconnect(ctx.destination) } catch { /* already disconnected */ }
     streamSrcRef.current = ctx.createMediaStreamSource(stream)
     streamSrcRef.current.connect(analyser)
+    connectedStreamRef.current = stream
   }
 
-  // Re-wire source whenever externalStream changes while analysis is running
+  // Re-wire source when externalStream changes while analysis is running.
+  // Skip if startAudio() already wired this exact stream to avoid a brief
+  // disconnect/reconnect that silences the analyser mid-frame.
   useEffect(() => {
     if (!isRunningRef.current) return
+    if (externalStream && connectedStreamRef.current === externalStream) return
     const { ctx, analyser } = ensureCtx()
     if (externalStream) {
       connectStreamSource(ctx, analyser, externalStream)
@@ -204,13 +216,14 @@ export function useAudioAnalysis(
 
   const reset = useCallback(() => {
     stop()
-    // Close the AudioContext and null all node refs so the next session
-    // starts with a completely fresh audio graph — no stale connections
-    audioCtxRef.current?.close().catch(() => {})
-    audioCtxRef.current = null
-    analyserRef.current = null
-    videoSrcRef.current = null
+    // Do NOT close the AudioContext — createMediaElementSource() permanently binds
+    // the <video> element to the AudioContext it was created in. Closing the context
+    // and creating a new one causes "HTMLMediaElement already connected to a different
+    // MediaElementSourceNode" on the next import. Instead, just disconnect sources
+    // and clear history; ensureCtx() will reuse the same context on the next start.
+    disconnectAll()
     streamSrcRef.current = null
+    connectedStreamRef.current = null
     smoothedPitchRef.current = 0
     setState({
       isAnalyzing: false,
@@ -221,5 +234,13 @@ export function useAudioAnalysis(
     })
   }, [stop])
 
-  return { state, start, stop, reset }
+  // Call within a user gesture to pre-create the AudioContext while activation is still valid.
+  // Subsequent startAudio calls reuse the already-running context even after async gaps.
+  const prepare = useCallback(() => { ensureCtx() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Read the capture stream at call time (not at render time) — the ref is always current.
+  // Use this in click handlers instead of the stale render-snapshot `captureStream` field.
+  const getCaptureStream = useCallback(() => destNodeRef.current?.stream ?? null, [])
+
+  return { state, start, stop, reset, prepare, captureStream: destNodeRef.current?.stream ?? null, getCaptureStream }
 }

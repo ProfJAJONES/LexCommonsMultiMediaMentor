@@ -20,7 +20,7 @@ import { useAnnotations } from './hooks/useAnnotations'
 import { useScreenRecorder } from './hooks/useScreenRecorder'
 import { useCameraInput } from './hooks/useCameraInput'
 import { useAIFeedback, SCOPE_LABELS } from './hooks/useAIFeedback'
-import type { KnowledgeScope } from './hooks/useAIFeedback'
+import type { KnowledgeScope, ChatMessage } from './hooks/useAIFeedback'
 import { useDomain, DOMAIN_CONFIG } from './hooks/useDomain'
 import { PROVIDER_CONFIG } from './utils/aiClient'
 import type { AIProvider } from './utils/aiClient'
@@ -39,13 +39,20 @@ declare global {
       loadFeedback: () => Promise<Record<string, unknown> | null>
       openPath: (p: string) => Promise<void>
       getCaptureSources: () => Promise<CaptureSource[]>
-      prepareCapture: (sourceId: string) => Promise<void>
       saveRecording: (buffer: Uint8Array, name: string) => Promise<string | { fallback: true; webmPath: string } | null>
       exportAnnotatedVideo: (videoPath: string, pitchPng: string, decibelPng: string, comments: Array<{ timestamp: number; tag: string; text: string }>) => Promise<string | { error: string } | null>
       saveReport: (html: string) => Promise<string | null>
       installBlackHole: () => Promise<string | null>
       openAudioMidiSetup: () => Promise<string | null>
       getMediaPermissions: () => Promise<{ camera: string; microphone: string }>
+      requestMediaAccess: () => Promise<{ camera: boolean; microphone: boolean }>
+      resetRendererMicTCC: () => Promise<{ ok: boolean; reset?: number }>
+      getScreenRecordingStatus: () => Promise<string>
+      openScreenRecordingSettings: () => Promise<void>
+      storeGet: (key: string) => Promise<string | null>
+      storeGetAll: () => Promise<Record<string, string>>
+      storeSet: (key: string, value: string | null) => Promise<void>
+      minimizeWindow: () => void
     }
   }
 }
@@ -64,6 +71,9 @@ export default function App() {
   const [fileName, setFileName] = useState('')
   const [mediaMode, setMediaMode] = useState<'none' | 'file' | 'webcam'>('none')
   const webcamStreamRef = useRef<MediaStream | null>(null)
+  const practiceMessagesRef = useRef<Array<{ speaker: string; text: string; timestamp: number }>>([])
+  const aiMessagesRef = useRef<ChatMessage[]>([])
+  const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null)
   const [currentTime, setCurrentTime] = useState(0)
   const [videoDimensions, setVideoDimensions] = useState({ w: 0, h: 0 })
   const [videoDuration, setVideoDuration] = useState(0)
@@ -85,6 +95,10 @@ export default function App() {
   const [blackholeStream, setBlackholeStream] = useState<MediaStream | null>(null)
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedMicId, setSelectedMicId] = useState<string>('')
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('')
+  const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedOutputId, setSelectedOutputId] = useState<string>('')
   const [micError, setMicError] = useState<string | null>(null)
   const [webcamError, setWebcamError] = useState<string | null>(null)
   const [showAudioPicker, setShowAudioPicker] = useState(false)
@@ -96,19 +110,61 @@ export default function App() {
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLDivElement>(null)
 
+  // Resize state for draggable dividers
+  const [sidebarWidth, setSidebarWidth] = useState(520)
+  const [videoAreaHeight, setVideoAreaHeight] = useState(300)
+  const [bodyTrackerWidth, setBodyTrackerWidth] = useState(220)
+
   // Fetch available audio input devices on mount and whenever permissions change
   function refreshMicDevices() {
     navigator.mediaDevices.enumerateDevices().then(devs => {
       const mics = devs.filter(d => d.kind === 'audioinput')
+      const cams = devs.filter(d => d.kind === 'videoinput')
+      const outs = devs.filter(d => d.kind === 'audiooutput')
       setMicDevices(mics)
+      setCameraDevices(cams)
+      setOutputDevices(outs)
       if (mics.length > 0 && !selectedMicId) setSelectedMicId(mics[0].deviceId)
+      if (cams.length > 0 && !selectedCameraId) setSelectedCameraId(cams[0].deviceId)
+      if (outs.length > 0 && !selectedOutputId) setSelectedOutputId(outs[0].deviceId)
     }).catch(() => {})
   }
   useEffect(() => {
-    refreshMicDevices()
+    // Probe mic on startup so macOS fires the TCC permission banner immediately.
+    // Audio-only — probing video here can leave the camera in a transient muted
+    // state that interferes with the first real getUserMedia call for the webcam.
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(s => { s.getTracks().forEach(t => t.stop()); refreshMicDevices() })
+      .catch(() => {
+        // First attempt failed — TCC dialog may be in progress after a reset.
+        // Retry once after a short delay to catch the granted permission.
+        retryTimer = setTimeout(() => {
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(s => { s.getTracks().forEach(t => t.stop()) })
+            .catch(() => {})
+            .finally(() => refreshMicDevices())
+        }, 2500)
+      })
     navigator.mediaDevices.addEventListener('devicechange', refreshMicDevices)
-    return () => navigator.mediaDevices.removeEventListener('devicechange', refreshMicDevices)
+    return () => {
+      if (retryTimer !== null) clearTimeout(retryTimer)
+      navigator.mediaDevices.removeEventListener('devicechange', refreshMicDevices)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Wire webcam stream to the video element — same pattern as LivePracticePanel.
+  // Depends on webcamStream state (not a ref) so React tracks the change reliably.
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    if (webcamStream) {
+      video.srcObject = webcamStream
+      video.play().catch(e => console.error('[webcam] play() failed:', e))
+    } else {
+      video.srcObject = null
+    }
+  }, [webcamStream])
 
   // Close audio picker when clicking outside
   useEffect(() => {
@@ -189,24 +245,61 @@ export default function App() {
   const [webcamAudioStream, setWebcamAudioStream] = useState<MediaStream | null>(null)
 
   const getCurrentTime = useCallback(() => videoRef.current?.currentTime ?? 0, [])
-  const analysisStream = mediaMode === 'webcam'
-    ? webcamAudioStream
-    : audioSource === 'mic' ? micStream
-    : audioSource === 'blackhole' ? blackholeStream
+  // Explicit mic/blackhole selection takes priority over media mode.
+  // 'video' source = webcam audio in webcam mode, or the video element in file mode (null).
+  const analysisStream =
+    audioSource === 'mic'        ? micStream
+    : audioSource === 'blackhole'  ? blackholeStream
+    : mediaMode === 'webcam'       ? webcamAudioStream
     : null
-  const { state: audio, start: startAudio, stop: stopAudio, reset: resetAudio } = useAudioAnalysis(
+  const { state: audio, start: startAudio, stop: stopAudio, reset: resetAudio, prepare: prepareAudio, getCaptureStream } = useAudioAnalysis(
     videoRef,
     analysisStream
   )
   const ann = useAnnotations(getCurrentTime)
   const screen = useScreenRecorder()
+
+  // Mic stream opened solely to drive the meters during screen recording (no other audio is active)
+  const screenMicRef = useRef<MediaStream | null>(null)
+
+  // Start audio analysis when screen recording begins so meters are always live.
+  // If an analysis stream is already wired (mic / blackhole / webcam), use it.
+  // Otherwise open a default mic just for the meters.
+  useEffect(() => {
+    if (screen.recorderState === 'recording' && !audio.isAnalyzing) {
+      if (analysisStream) {
+        startAudio()
+      } else {
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          .then(stream => {
+            screenMicRef.current = stream
+            startAudio(stream)
+          })
+          .catch(() => { /* meters stay flat — mic unavailable */ })
+      }
+    }
+    if (screen.recorderState === 'idle') {
+      if (screenMicRef.current) {
+        screenMicRef.current.getTracks().forEach(t => t.stop())
+        screenMicRef.current = null
+      }
+    }
+  }, [screen.recorderState]) // eslint-disable-line react-hooks/exhaustive-deps
   const camera = useCameraInput()
   const ai = useAIFeedback()
+  // Keep latest AI messages in a ref so the close handler always sees current state
+  useEffect(() => { aiMessagesRef.current = ai.state.messages }, [ai.state.messages])
+  // When the IPC store loads the API key (async, may arrive after first render),
+  // auto-close the settings drawer so the user isn't asked to enter it again.
+  useEffect(() => {
+    if (ai.apiKey) setShowSettingsDrawer(false)
+  }, [ai.apiKey])
 
   function stopWebcam() {
     stopAudio()
     webcamStreamRef.current?.getTracks().forEach(t => t.stop())
     webcamStreamRef.current = null
+    setWebcamStream(null)
     setWebcamAudioStream(null)
     micStream?.getTracks().forEach(t => t.stop())
     blackholeStream?.getTracks().forEach(t => t.stop())
@@ -238,55 +331,107 @@ export default function App() {
     setMovementHistory([])
     setMediaMode('none')
     setVideoEnded(false)
+    practiceMessagesRef.current = []
+    aiMessagesRef.current = []
   }
 
   async function handleWebcam() {
     if (mediaLoadingRef.current) return
     mediaLoadingRef.current = true
     setWebcamError(null)
-    stopWebcam()  // stops mic/blackhole/webcam streams
+    stopWebcam()
     resetAudio()
+    prepareAudio()  // create AudioContext now, within the user gesture window
     setAudioSource('video')
+
+    // Open the webcam. Get video and audio in separate getUserMedia calls so
+    // a mic TCC denial never blocks the camera, and a separate audio-only call
+    // can trigger its own TCC prompt if the combined call was denied.
+    let videoStream: MediaStream | null = null
+    let audioStream: MediaStream | null = null
+
+    // ── Video ──────────────────────────────────────────────────────────────────
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      webcamStreamRef.current = stream
-      // Extract audio tracks as a standalone stream for the analyser — using a
-      // MediaStreamAudioSourceNode is more reliable than MediaElementAudioSourceNode
-      // on a live srcObject stream (which can silently drop audio on some Electron builds)
-      const audioTracks = stream.getAudioTracks()
-      const audioStream = audioTracks.length > 0 ? new MediaStream(audioTracks) : null
-      if (audioStream) setWebcamAudioStream(audioStream)
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play().catch(() => {})
+      const vc = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
+      videoStream = await navigator.mediaDevices.getUserMedia({ video: vc, audio: false })
+    } catch {
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      } catch { /* handled below */ }
+    }
+
+    // ── Audio (separate call so its TCC prompt fires independently) ────────────
+    let micError = ''
+    try {
+      const ac = selectedMicId ? { deviceId: { ideal: selectedMicId } } : true
+      audioStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: ac })
+    } catch (e1) {
+      micError = e1 instanceof Error ? `${e1.name}: ${e1.message}` : String(e1)
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+        micError = ''
+      } catch (e2) {
+        micError = e2 instanceof Error ? `${e2.name}: ${e2.message}` : String(e2)
       }
+    }
+
+    try {
+      if (!videoStream) throw new Error('Could not open camera')
+
+      // Merge tracks into a single stream for the video element + recorder
+      const combined = new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...(audioStream ? audioStream.getAudioTracks() : [])
+      ])
+
+      // Re-enumerate now that permission is confirmed — real labels/IDs only
+      // appear after TCC is granted.
+      const devs = await navigator.mediaDevices.enumerateDevices()
+      const mics = devs.filter(d => d.kind === 'audioinput')
+      const cams = devs.filter(d => d.kind === 'videoinput')
+      setMicDevices(mics)
+      setCameraDevices(cams)
+      const activeCam = combined.getVideoTracks()[0]
+      if (activeCam) {
+        const matchedCam = cams.find(c => c.label === activeCam.label)
+        if (matchedCam) setSelectedCameraId(matchedCam.deviceId)
+      }
+      const activeMic = combined.getAudioTracks()[0]
+      if (activeMic) {
+        const matchedMic = mics.find(m => m.label === activeMic.label)
+        if (matchedMic) setSelectedMicId(matchedMic.deviceId)
+      }
+
+      const hasAudio = combined.getAudioTracks().length > 0
+
+      webcamStreamRef.current = combined
+      setWebcamStream(combined)
+      const micOnly = hasAudio ? new MediaStream(combined.getAudioTracks()) : null
+      if (micOnly) setWebcamAudioStream(micOnly)
       setMediaPath(null)
       setFileName('Live Webcam')
       setCurrentTime(0)
       setMediaMode('webcam')
-      // Pass the audio stream directly — don't wait for React state to propagate
-      startAudio(audioStream ?? undefined)
-      // Permission now granted — refresh device list so labels are populated
-      const devs = await navigator.mediaDevices.enumerateDevices()
-      setMicDevices(devs.filter(d => d.kind === 'audioinput'))
+      startAudio(micOnly ?? undefined)
+      if (!hasAudio) {
+        const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
+        if (perms.microphone === 'denied') {
+          setWebcamError('mic-denied')
+        } else {
+          setWebcamError(`Webcam open (video only) — mic unavailable (${micError || 'unknown error'})`)
+        }
+      }
     } catch (e) {
-      // Check actual macOS permission status so the message is accurate
+      // All four attempts failed — check TCC status for an accurate message.
+      const errName = e instanceof Error ? e.name : 'UnknownError'
+      const errMsg = e instanceof Error ? e.message : String(e)
       const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
-      const denied = perms.camera === 'denied' || perms.microphone === 'denied'
-      const notDetermined = perms.camera === 'not-determined' || perms.microphone === 'not-determined'
-      const granted = perms.camera === 'granted' && perms.microphone === 'granted'
-
-      if (denied) {
-        setWebcamError('Camera or microphone access is blocked. Open System Settings → Privacy & Security → Camera (and Microphone) and enable this app, then restart it.')
-      } else if (granted) {
-        // Permission is granted but getUserMedia still failed — device busy or needs restart
-        const msg = e instanceof Error ? e.message : String(e)
-        setWebcamError(`Camera access is allowed but the device couldn't be opened — it may be in use by another app. Try closing other apps using the camera, or restart this app. (${msg})`)
-      } else if (notDetermined) {
-        setWebcamError('Camera/microphone permission has not been granted yet. Restart the app — it will prompt you on launch.')
+      if (perms.camera === 'denied') {
+        setWebcamError(`Camera blocked (${errName}). In System Settings → Privacy & Security → Camera, enable "LexCommons Multimedia Mentor", then restart the app.`)
+      } else if (perms.camera === 'not-determined') {
+        setWebcamError(`Camera access needed (${errName}). If you see a permission banner, click Allow, then click Webcam again.`)
       } else {
-        const msg = e instanceof Error ? e.message : String(e)
-        setWebcamError(`Could not start webcam: ${msg}`)
+        setWebcamError(`Camera failed: ${errName} — ${errMsg}  |  Camera TCC: ${perms.camera}, Mic TCC: ${perms.microphone}`)
       }
     } finally {
       mediaLoadingRef.current = false
@@ -332,6 +477,72 @@ export default function App() {
   const handlePause = useCallback(() => {
     stopAudio()
   }, [stopAudio])
+
+  function buildComprehensiveSessionHTML() {
+    const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+    const TAG_COLORS: Record<string, string> = {
+      pacing: '#818cf8', clarity: '#34d399', volume: '#fbbf24',
+      posture: '#f472b6', eye_contact: '#60a5fa', argument: '#f87171', general: '#94a3b8'
+    }
+    const practiceRows = practiceMessagesRef.current.map(m => {
+      const isStudent = m.speaker === 'student'
+      const label = isStudent ? 'You' : 'Practice Partner'
+      const bg = isStudent ? '#eff6ff' : '#f8fafc'
+      const border = isStudent ? '#bfdbfe' : '#e2e8f0'
+      const time = new Date(m.timestamp).toLocaleTimeString()
+      const escaped = m.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
+      return `<div style="margin-bottom:10px;padding:10px 14px;background:${bg};border:1px solid ${border};border-radius:8px;"><div style="font-size:11px;color:#64748b;margin-bottom:3px;">${label} — ${time}</div><div style="font-size:13px;color:#0f172a;line-height:1.6;">${escaped}</div></div>`
+    }).join('')
+    const aiRows = aiMessagesRef.current.map(m => {
+      const isUser = m.role === 'user'
+      const bg = isUser ? '#eff6ff' : '#f0fdf4'
+      const border = isUser ? '#bfdbfe' : '#86efac'
+      const label = isUser ? (m.displayName || 'You') : 'AI Coach'
+      const escaped = (m.content || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
+      return `<div style="margin-bottom:10px;padding:10px 14px;background:${bg};border:1px solid ${border};border-radius:8px;"><div style="font-size:11px;color:#64748b;margin-bottom:3px;font-weight:600;">${label}</div><div style="font-size:13px;color:#0f172a;line-height:1.6;">${escaped}</div></div>`
+    }).join('')
+    const feedbackRows = ann.comments.map(c => `<tr>
+      <td style="font-family:monospace;white-space:nowrap;padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#0284c7;font-weight:600;">${fmtTime(c.timestamp)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;"><span style="background:${TAG_COLORS[c.tag]}22;border:1px solid ${TAG_COLORS[c.tag]}66;border-radius:4px;color:${TAG_COLORS[c.tag]};font-size:11px;font-weight:700;padding:2px 7px;text-transform:uppercase;">${c.tag.replace('_',' ')}</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#475569;font-weight:600;">${c.author}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#1e293b;line-height:1.5;">${c.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
+    </tr>`).join('')
+
+    const hasFeedback = ann.comments.length > 0
+    const hasAI = aiMessagesRef.current.length > 0
+    const hasPractice = practiceMessagesRef.current.length > 0
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1e293b; margin: 40px; max-width: 900px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  h2 { font-size: 15px; font-weight: 700; color: #0284c7; margin: 32px 0 12px; border-bottom: 2px solid #bae6fd; padding-bottom: 6px; }
+  .meta { color: #64748b; font-size: 13px; margin-bottom: 28px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+  th { background: #f0f9ff; border-bottom: 2px solid #bae6fd; color: #0369a1; font-size: 11px; font-weight: 700; letter-spacing: .5px; padding: 8px 12px; text-align: left; text-transform: uppercase; }
+  tr:last-child td { border-bottom: none; }
+  .empty { color: #94a3b8; font-style: italic; font-size: 13px; }
+  @media print { body { margin: 20px; } }
+</style>
+</head><body>
+<h1>Session Report — ${fileName || 'Untitled'}</h1>
+<div class="meta">Exported ${new Date().toLocaleString()}${durationSec > 0 ? ` &middot; Duration: ${fmtTime(durationSec)}` : ''}</div>
+
+${hasFeedback ? `<h2>Feedback Notes</h2><table><thead><tr><th>Time</th><th>Tag</th><th>Author</th><th>Comment</th></tr></thead><tbody>${feedbackRows}</tbody></table>` : '<h2>Feedback Notes</h2><p class="empty">No feedback comments recorded.</p>'}
+
+${hasAI ? `<h2>AI Coaching Report</h2>${aiRows}` : ''}
+
+${hasPractice ? `<h2>Practice Session Transcript</h2>${practiceRows}` : ''}
+
+</body></html>`
+  }
+
+  async function handleSaveSessionAndClose() {
+    const slug = (fileName || 'session').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')
+    const datePart = new Date().toISOString().slice(0, 10)
+    await window.api.saveNotesAsPDF(buildComprehensiveSessionHTML(), `${slug}-${datePart}.pdf`)
+    doClear()
+  }
 
   function buildExportJSON() {
     return JSON.stringify({
@@ -508,13 +719,15 @@ ${ann.comments.length === 0
 
   const graphWidth = 560
 
-  const durationSec = videoDuration
+  const durationSec = videoDuration ||
+    (audio.pitchHistory.length > 0 ? audio.pitchHistory[audio.pitchHistory.length - 1].t : 0)
   const hasAudioData = audio.pitchHistory.length > 0 || audio.dbHistory.length > 0
 
   return (
     <div style={styles.root}>
-      {/* Source picker modal */}
-      {screen.recorderState === 'picking' && (
+      {/* Source picker modal — only shown when legacy source list is populated
+           (Electron 30+ uses the native macOS picker via getDisplayMedia instead) */}
+      {screen.recorderState === 'picking' && screen.sources.length > 0 && (
         <SourcePicker
           sources={screen.sources}
           onSelect={screen.startRecording}
@@ -525,18 +738,30 @@ ${ann.comments.length === 0
       {/* Close session confirmation modal */}
       {showCloseConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 10, padding: 28, maxWidth: 400, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>Close this session?</div>
-            <div style={{ fontSize: 13, color: '#475569', marginBottom: 20, lineHeight: 1.5 }}>
-              You have comments, annotations, or audio data from this session.
-              Export your notes first if you want to save them — they cannot be recovered after closing.
+          <div style={{ background: '#fff', borderRadius: 10, padding: 28, maxWidth: 440, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>Save before closing?</div>
+            <div style={{ fontSize: 13, color: '#475569', marginBottom: 6, lineHeight: 1.5 }}>
+              Your session includes:
             </div>
+            <ul style={{ fontSize: 12, color: '#475569', margin: '0 0 16px 0', paddingLeft: 18, lineHeight: 1.8 }}>
+              {ann.comments.length > 0 && <li><strong>{ann.comments.length}</strong> feedback comment{ann.comments.length !== 1 ? 's' : ''}</li>}
+              {ann.annotations.length > 0 && <li><strong>{ann.annotations.length}</strong> video annotation{ann.annotations.length !== 1 ? 's' : ''}</li>}
+              {aiMessagesRef.current.length > 0 && <li>AI coaching conversation ({aiMessagesRef.current.length} messages)</li>}
+              {practiceMessagesRef.current.length > 0 && <li>Practice session transcript ({practiceMessagesRef.current.length} turns)</li>}
+              {audio.pitchHistory.length > 0 && <li>Pitch &amp; volume data</li>}
+            </ul>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button
-                onClick={async () => { await handleExport('json'); doClear() }}
+                onClick={handleSaveSessionAndClose}
                 style={{ ...btnStyle('#0284c7'), fontSize: 13, padding: '9px 16px', textAlign: 'left' }}
               >
-                💾 Export Notes then close
+                📄 Save session PDF &amp; close
+              </button>
+              <button
+                onClick={async () => { await handleExport('pdf'); doClear() }}
+                style={{ ...btnStyle('#059669'), fontSize: 13, padding: '9px 16px', textAlign: 'left' }}
+              >
+                📝 Save feedback notes only &amp; close
               </button>
               <button
                 onClick={doClear}
@@ -548,7 +773,7 @@ ${ann.comments.length === 0
                 onClick={() => setShowCloseConfirm(false)}
                 style={{ ...btnStyle('#64748b'), fontSize: 13, padding: '9px 16px', textAlign: 'left' }}
               >
-                ← Stay in this session
+                ← Stay in session
               </button>
             </div>
           </div>
@@ -559,7 +784,7 @@ ${ann.comments.length === 0
       {showBlackHoleSetup && <BlackHoleSetup onClose={() => setShowBlackHoleSetup(false)} />}
 
       {/* Sidebar */}
-      <aside style={styles.sidebar}>
+      <aside style={{ ...styles.sidebar, width: sidebarWidth, minWidth: sidebarWidth }}>
         {/* Traffic-light clearance — draggable titlebar zone */}
         <div style={{ height: 38, WebkitAppRegion: 'drag', flexShrink: 0 } as React.CSSProperties} />
         <div style={styles.sidebarHeader}>
@@ -739,6 +964,7 @@ ${ann.comments.length === 0
               apiKey={ai.apiKey}
               provider={ai.provider}
               domain={domain}
+              onSessionData={msgs => { practiceMessagesRef.current = msgs }}
             />
           )}
           {activeTab === 'camera' && (
@@ -901,6 +1127,23 @@ ${ann.comments.length === 0
         </div>
       </aside>
 
+      {/* Sidebar ↔ Main resize handle */}
+      <div
+        onMouseDown={(e) => {
+          e.preventDefault()
+          const startX = e.clientX
+          const startW = sidebarWidth
+          function onMove(ev: MouseEvent) { setSidebarWidth(Math.max(200, Math.min(520, startW + (ev.clientX - startX)))) }
+          function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+          document.addEventListener('mousemove', onMove)
+          document.addEventListener('mouseup', onUp)
+        }}
+        style={{ width: 12, cursor: 'col-resize', flexShrink: 0, background: 'transparent', position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        title="Drag to resize sidebar"
+      >
+        <div style={{ width: 4, height: 48, background: '#93c5fd', borderRadius: 3 }} />
+      </div>
+
       {/* Main area — report view takes over when that tab is active */}
       {activeTab === 'report' && (
         <main style={{ ...styles.main, padding: 0, overflow: 'hidden' }}>
@@ -936,8 +1179,50 @@ ${ann.comments.length === 0
           >
             {mediaMode === 'webcam' ? '● Live' : '📷 Webcam'}
           </button>
-          {webcamError && (
-            <span style={{ color: '#dc2626', fontSize: 11, maxWidth: 260 }}>{webcamError}</span>
+          {webcamError === 'mic-denied' && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ color: '#dc2626', fontSize: 11 }}>Microphone blocked —</span>
+              <button
+                onClick={async () => {
+                  // Reset the Renderer helper's TCC entry so the OS will prompt again.
+                  // macOS tracks the helper bundle separately from the main app; clearing
+                  // only the main bundle (what tccutil docs say) leaves the helper denied.
+                  await window.api.resetRendererMicTCC().catch(() => {})
+                  // Give TCC a moment to write the reset before getUserMedia reads it.
+                  await new Promise(r => setTimeout(r, 300))
+                  // Now getUserMedia sees "not-determined" and fires a fresh OS prompt.
+                  try {
+                    const testStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+                    testStream.getTracks().forEach(t => t.stop())
+                    // Prompt was granted — restart webcam with full stream.
+                    setWebcamError(null)
+                    handleWebcam()
+                  } catch {
+                    // User denied the prompt or something else blocked it — fall back to
+                    // opening System Settings so they can toggle access manually.
+                    await window.api.requestMediaAccess()
+                    setWebcamError('mic-settings-opened')
+                  }
+                }}
+                style={{ fontSize: 11, padding: '2px 8px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
+              >
+                Fix Microphone Access
+              </button>
+            </span>
+          )}
+          {webcamError === 'mic-settings-opened' && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ color: '#b45309', fontSize: 11 }}>Enable "LexCommons Multimedia Mentor" in the System Settings window that just opened, then click</span>
+              <button
+                onClick={() => { setWebcamError(null); handleWebcam() }}
+                style={{ fontSize: 11, padding: '2px 8px', background: '#059669', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
+              >
+                Try Again
+              </button>
+            </span>
+          )}
+          {webcamError && webcamError !== 'mic-denied' && (
+            <span style={{ color: '#dc2626', fontSize: 11, maxWidth: 360, whiteSpace: 'normal', lineHeight: 1.4 }}>{webcamError}</span>
           )}
           {fileName && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -952,16 +1237,44 @@ ${ann.comments.length === 0
             </div>
           )}
 
-          {screen.recorderState === 'idle' && !screen.savedPath && (
+          {screen.recorderState === 'idle' && (
             <div style={{ display: 'flex', gap: 4 }}>
-              <button onClick={screen.openPicker} style={btnStyle('#7c3aed')}>
+              <button
+                onClick={() => {
+                  // Always use the Web Audio capture stream — it's the same audio that drives
+                  // the pitch/decibel meters, read at call-time via getCaptureStream() so we
+                  // never read a stale render-snapshot. Passing raw webcam/mic tracks alongside
+                  // an active createMediaStreamSource() on those same tracks causes Electron to
+                  // silently drop audio from the MediaRecorder output.
+                  // Fall back to raw streams only if audio analysis hasn't started yet.
+                  const cs = getCaptureStream()
+                  const audioStreamForRecording: MediaStream | undefined =
+                    cs ??
+                    (mediaMode === 'webcam'      ? (webcamStreamRef.current ?? undefined) :
+                     audioSource === 'mic'       ? (micStream ?? undefined) :
+                     audioSource === 'blackhole' ? (blackholeStream ?? undefined) :
+                     undefined)
+                  screen.openPicker(audioStreamForRecording)
+                }}
+                style={btnStyle('#7c3aed')}
+              >
                 ⏺ Record Screen
               </button>
               {/* Audio source picker */}
               <div style={{ position: 'relative' }} data-audio-picker>
                 <button
                   ref={audioPickerBtnRef}
-                  onClick={() => setShowAudioPicker(v => !v)}
+                  onClick={() => {
+                    const opening = !showAudioPicker
+                    setShowAudioPicker(v => !v)
+                    if (opening) {
+                      // Re-probe on open — triggers TCC dialog if not yet granted,
+                      // and ensures the device list is fresh.
+                      navigator.mediaDevices.getUserMedia({ audio: true })
+                        .then(s => { s.getTracks().forEach(t => t.stop()); refreshMicDevices() })
+                        .catch(() => refreshMicDevices())
+                    }
+                  }}
                   title="Choose audio source for analysis"
                   style={{ ...btnStyle(showAudioPicker ? '#0284c7' : '#475569'), fontSize: 11, padding: '5px 9px' }}
                 >
@@ -978,26 +1291,25 @@ ${ann.comments.length === 0
                       Audio source for analysis
                     </div>
 
-                    {/* Video file audio — only when a file is loaded */}
-                    {mediaMode === 'file' && (
+                    {/* Video file audio — always shown; active when a file is loaded */}
+                    {mediaMode !== 'webcam' && (
                       <AudioPickerOption
                         active={audioSource === 'video'}
                         icon="🎬"
                         label="Video file audio"
-                        sub="Uses the audio track from your imported video"
+                        sub={mediaMode === 'file' ? 'Uses the audio track from your imported video' : 'Import a video/audio file to use this source'}
                         onClick={() => selectAudioDevice('video')}
                       />
                     )}
 
-                    {/* Webcam mic — always available */}
+                    {/* Webcam mic — selectable in webcam mode */}
                     {mediaMode === 'webcam' && (
                       <AudioPickerOption
-                        active={true}
+                        active={audioSource === 'video'}
                         icon="📷"
                         label="Webcam microphone"
-                        sub="Auto-selected in webcam mode"
-                        onClick={() => {}}
-                        disabled
+                        sub="Default: use the webcam's built-in mic"
+                        onClick={() => selectAudioDevice('video')}
                       />
                     )}
 
@@ -1032,7 +1344,7 @@ ${ann.comments.length === 0
                         active={audioSource === 'blackhole'}
                         icon="◈"
                         label="BlackHole 2ch"
-                        sub="Captures app/video audio without room noise"
+                        sub="Captures system audio — route your Mac's output through BlackHole in Audio MIDI Setup, then select this"
                         onClick={() => selectAudioDevice('blackhole')}
                       />
                     ) : (
@@ -1053,16 +1365,74 @@ ${ann.comments.length === 0
               )}
             </div>
           )}
+          {/* Screen recording error — shown in idle state when openPicker finds no sources */}
+          {screen.recorderState === 'idle' && screen.audioError && (screen.audioError.startsWith('screen-recording-denied:') || screen.audioError.startsWith('screen-recording-error:')) && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', fontSize: 12, marginTop: 4 }}>
+              {screen.audioError.startsWith('screen-recording-error:') ? (
+                <>
+                  <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: 4 }}>Screen Recording error</div>
+                  <div style={{ color: '#7f1d1d', fontFamily: 'monospace', fontSize: 11, marginBottom: 6, wordBreak: 'break-all' }}>
+                    {screen.audioError.replace('screen-recording-error:', '')}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: 4 }}>Screen Recording permission not granted</div>
+                  <div style={{ color: '#7f1d1d', marginBottom: 6 }}>
+                    macOS is blocking LexCommons from capturing other windows. To record your screen:
+                  </div>
+                  <ol style={{ color: '#7f1d1d', margin: '0 0 6px 16px', padding: 0, lineHeight: 1.6 }}>
+                    <li>Click <strong>Open Settings</strong> below</li>
+                    <li>Find <strong>LexCommons Multimedia Mentor</strong> and enable the toggle</li>
+                    <li>Restart this app, then try recording again</li>
+                  </ol>
+                </>
+              )}
+              <button
+                onClick={() => (window.api as Record<string, unknown> & { openScreenRecordingSettings: () => void }).openScreenRecordingSettings()}
+                style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Open Screen Recording Settings
+              </button>
+            </div>
+          )}
           {(screen.recorderState === 'recording' || screen.recorderState === 'paused' || screen.recorderState === 'saving') && (
-            <RecordingIndicator
-              elapsedSec={screen.elapsedSec}
-              state={screen.recorderState}
-              hasAudio={screen.hasAudio}
-              videoRef={videoRef}
-              onPause={screen.pauseRecording}
-              onResume={screen.resumeRecording}
-              onStop={screen.stopRecording}
-            />
+            <>
+              <RecordingIndicator
+                elapsedSec={screen.elapsedSec}
+                state={screen.recorderState}
+                hasAudio={screen.hasAudio}
+                videoRef={videoRef}
+                onPause={screen.pauseRecording}
+                onResume={screen.resumeRecording}
+                onStop={screen.stopRecording}
+              />
+              {screen.audioError && screen.audioError.startsWith('screen-recording-denied:') ? (
+                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', fontSize: 12 }}>
+                  <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: 4 }}>
+                    Screen Recording permission not granted
+                  </div>
+                  <div style={{ color: '#7f1d1d', marginBottom: 6 }}>
+                    macOS is blocking LexCommons from capturing other windows. To record your entire screen:
+                  </div>
+                  <ol style={{ color: '#7f1d1d', margin: '0 0 6px 16px', padding: 0, lineHeight: 1.6 }}>
+                    <li>Click <strong>Open Settings</strong> below</li>
+                    <li>Find <strong>LexCommons Multimedia Mentor</strong> and enable the toggle</li>
+                    <li>Restart this app, then try recording again</li>
+                  </ol>
+                  <button
+                    onClick={() => (window.api as Record<string, unknown> & { openScreenRecordingSettings: () => void }).openScreenRecordingSettings()}
+                    style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Open Screen Recording Settings
+                  </button>
+                </div>
+              ) : screen.audioError ? (
+                <span style={{ color: '#b45309', fontSize: 11, alignSelf: 'center' }}>
+                  ⚠ {screen.audioError} — recording video only
+                </span>
+              ) : null}
+            </>
           )}
           {screen.savedPath && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: screen.savedAsFallback ? '#fffbeb' : '#f0fdf4', border: `1px solid ${screen.savedAsFallback ? '#fcd34d' : '#86efac'}`, borderRadius: 6, padding: '5px 10px' }}>
@@ -1128,7 +1498,12 @@ ${ann.comments.length === 0
         {/* Video + overlay */}
         <div
           ref={videoWrapRef}
-          style={{ position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden' }}
+          style={{
+            position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden',
+            flexShrink: 0,
+            marginTop: 8,
+            height: mediaMode !== 'none' ? videoAreaHeight : undefined
+          }}
           onMouseEnter={handleResizeObserver}
         >
           {mediaMode === 'file' && mediaPath ? (
@@ -1179,32 +1554,71 @@ ${ann.comments.length === 0
               )}
             </>
           ) : mediaMode === 'webcam' ? (
-            <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', background: '#000' }}>
+            <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', background: '#000', width: '100%', height: '100%' }}>
               <video
                 ref={videoRef}
                 autoPlay
                 muted
                 playsInline
-                style={{ width: '100%', maxHeight: 480, display: 'block', borderRadius: 8 }}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: 8 }}
               />
-              <div style={{
-                position: 'absolute',
-                top: 10,
-                left: 12,
-                background: 'rgba(0,0,0,0.55)',
-                color: '#fff',
-                fontSize: 11,
-                fontWeight: 600,
-                padding: '3px 8px',
-                borderRadius: 4,
-                letterSpacing: 0.5
-              }}>
+              {/* LIVE badge */}
+              <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.55)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 4, letterSpacing: 0.5 }}>
                 LIVE
+              </div>
+              {/* Device control bar */}
+              <div style={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 8 }}>
+                {/* Mic picker */}
+                <label style={devCtrl}>
+                  <span>🎙</span>
+                  <select
+                    value={selectedMicId}
+                    onChange={e => setSelectedMicId(e.target.value)}
+                    style={devSelect}
+                  >
+                    {micDevices.map(d => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || 'Microphone'}</option>
+                    ))}
+                  </select>
+                </label>
+                {/* Speaker picker */}
+                {outputDevices.length > 0 && (
+                  <label style={devCtrl}>
+                    <span>🔊</span>
+                    <select
+                      value={selectedOutputId}
+                      onChange={e => {
+                        setSelectedOutputId(e.target.value)
+                        const v = videoRef.current as HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }
+                        v?.setSinkId?.(e.target.value).catch(() => {})
+                      }}
+                      style={devSelect}
+                    >
+                      {outputDevices.map(d => (
+                        <option key={d.deviceId} value={d.deviceId}>{d.label || 'Speaker'}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {/* Camera picker */}
+                <label style={devCtrl}>
+                  <span>📷</span>
+                  <select
+                    value={selectedCameraId}
+                    onChange={e => { setSelectedCameraId(e.target.value) }}
+                    style={devSelect}
+                    title="Change camera — click Webcam button to apply"
+                  >
+                    {cameraDevices.map(d => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || 'Camera'}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
           ) : (
             <div style={styles.placeholder}>
-              <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16, fontWeight: 500, letterSpacing: 0.2 }}>
+              <div style={{ fontSize: 14, color: '#e2e8f0', marginBottom: 16, fontWeight: 500, letterSpacing: 0.2, textAlign: 'center', maxWidth: 520, lineHeight: 1.6 }}>
                 Record or import oral advocacy practice — get real-time pitch &amp; volume analysis, annotate video, and AI coaching
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
@@ -1215,7 +1629,26 @@ ${ann.comments.length === 0
                   📷 Use Webcam
                 </button>
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 10 }}>
+              {/* Device pickers — shown before webcam starts so user can select camera first */}
+              {cameraDevices.length > 0 && (
+                <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#334155', background: '#fff', borderRadius: 8, padding: '6px 10px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: 20 }}>📷</span>
+                    <select value={selectedCameraId} onChange={e => setSelectedCameraId(e.target.value)}
+                      style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', maxWidth: 180 }}>
+                      {cameraDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Camera'}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#334155', background: '#fff', borderRadius: 8, padding: '6px 10px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: 20 }}>🎙</span>
+                    <select value={selectedMicId} onChange={e => setSelectedMicId(e.target.value)}
+                      style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', maxWidth: 180 }}>
+                      {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Microphone'}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 12 }}>
                 Supports MP4, MOV, WebM, MKV, MP3, WAV, M4A
               </div>
               {webcamError && (
@@ -1227,45 +1660,80 @@ ${ann.comments.length === 0
           )}
         </div>
 
-        {/* Graphs — file mode and webcam mode */}
-        {(mediaMode === 'file' && mediaPath || mediaMode === 'webcam') && (
-          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            {/* Audio graphs column */}
-            <div style={styles.graphs}>
-              {/* Audio source indicator */}
-              <AudioSourceBar
-                source={audioSource}
-                mediaMode={mediaMode}
-                micDevices={micDevices}
-                selectedMicId={selectedMicId}
-              />
+        {/* Video ↔ Graphs resize handle */}
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault()
+            const startY = e.clientY
+            const startH = videoAreaHeight
+            function onMove(ev: MouseEvent) { setVideoAreaHeight(Math.max(80, Math.min(700, startH + (ev.clientY - startY)))) }
+            function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+            document.addEventListener('mousemove', onMove)
+            document.addEventListener('mouseup', onUp)
+          }}
+          style={{ height: 16, cursor: 'row-resize', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          title="Drag to resize video area"
+        >
+          <div style={{ width: 80, height: 4, background: '#93c5fd', borderRadius: 3 }} />
+        </div>
 
+        {/* Graphs — always visible */}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingBottom: 12 }}>
+          <div style={styles.graphs}>
+            {/* Audio source indicator */}
+            <AudioSourceBar
+              source={audioSource}
+              mediaMode={mediaMode}
+              micDevices={micDevices}
+              selectedMicId={selectedMicId}
+            />
+
+            {/* Pitch graph + Body tracker side by side */}
+            <div style={{ display: 'flex', gap: 0, alignItems: 'flex-start' }}>
               <PitchGraph
                 ref={pitchGraphRef}
                 samples={audio.pitchHistory}
                 currentPitch={audio.currentPitch}
                 width={graphWidth}
-                height={200}
+                height={260}
               />
-              <PianoKeyboard
-                hz={audio.currentPitch}
-                width={graphWidth}
-              />
-              <DecibelGraph
-                ref={decibelGraphRef}
-                samples={audio.dbHistory}
-                currentDb={audio.currentDb}
-                width={graphWidth}
-                height={80}
-              />
+
+              {/* Pitch ↔ BodyTracker resize handle */}
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  const startX = e.clientX
+                  const startW = bodyTrackerWidth
+                  function onMove(ev: MouseEvent) { setBodyTrackerWidth(Math.max(120, Math.min(420, startW - (ev.clientX - startX)))) }
+                  function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+                  document.addEventListener('mousemove', onMove)
+                  document.addEventListener('mouseup', onUp)
+                }}
+                style={{ width: 14, cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, alignSelf: 'stretch' }}
+                title="Drag to resize body tracker"
+              >
+                <div style={{ width: 4, height: 48, background: '#93c5fd', borderRadius: 3 }} />
+              </div>
+
+              {/* Body tracker */}
+              <div style={{ flexShrink: 0 }}>
+                <BodyTracker sourceVideoRef={videoRef} width={bodyTrackerWidth} height={260} apiKey={ai.apiKey} onMovementSample={handleMovementSample} />
+              </div>
             </div>
 
-            {/* Body movement tracker */}
-            <div style={{ background: '#f0f9ff', borderRadius: 8, padding: 14, border: '1px solid #bae6fd', flexShrink: 0 }}>
-              <BodyTracker sourceVideoRef={videoRef} width={260} height={330} apiKey={ai.apiKey} onMovementSample={handleMovementSample} />
-            </div>
+            <PianoKeyboard
+              hz={audio.currentPitch}
+              width={graphWidth}
+            />
+            <DecibelGraph
+              ref={decibelGraphRef}
+              samples={audio.dbHistory}
+              currentDb={audio.currentDb}
+              width={graphWidth}
+              height={80}
+            />
           </div>
-        )}
+        </div>
       </main>}
     </div>
   )
@@ -1482,6 +1950,18 @@ function AnnotationsList({
   )
 }
 
+const devCtrl: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 4,
+  background: 'rgba(0,0,0,0.6)', borderRadius: 6, padding: '4px 8px',
+  cursor: 'pointer', color: '#fff', fontSize: 13
+}
+
+const devSelect: React.CSSProperties = {
+  background: 'transparent', border: 'none', color: '#fff',
+  fontSize: 11, cursor: 'pointer', maxWidth: 140,
+  outline: 'none'
+}
+
 // ---- Styles ----
 function btnStyle(bg: string): React.CSSProperties {
   // Convert dark neutral backgrounds to light; keep saturated accent colors
@@ -1501,20 +1981,22 @@ function btnStyle(bg: string): React.CSSProperties {
   }
 }
 
-// ---- Sidebar API key input (self-contained, auto-saves on blur/Enter) ----
+// ---- Sidebar API key input (saves on every keystroke so no Enter/blur required) ----
 function SidebarKeyInput({ apiKey, provider, onSave }: { apiKey: string; provider: AIProvider; onSave: (k: string) => void }) {
   const [draft, setDraft] = React.useState(apiKey)
   const [show, setShow] = React.useState(false)
   React.useEffect(() => { setDraft(apiKey) }, [apiKey])
-  function save() { if (draft.trim()) onSave(draft.trim()) }
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setDraft(val)
+    onSave(val.trim())
+  }
   return (
     <div style={{ display: 'flex', gap: 5 }}>
       <input
         type={show ? 'text' : 'password'}
         value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={save}
-        onKeyDown={e => e.key === 'Enter' && save()}
+        onChange={handleChange}
         placeholder={PROVIDER_CONFIG[provider].placeholder}
         style={{
           flex: 1, border: '1px solid #e2e8f0', borderRadius: 6,
@@ -1575,15 +2057,18 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
-    padding: '16px 16px 16px 28px',
-    overflowY: 'auto'
+    gap: 0,
+    padding: '12px 16px 0 28px',
+    overflow: 'hidden',
+    minHeight: 0
   },
   toolbar: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    flexWrap: 'wrap'
+    flexWrap: 'wrap',
+    flexShrink: 0,
+    marginBottom: 8
   },
   fileName: {
     color: '#64748b',
@@ -1598,7 +2083,8 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 320,
+    flex: 1,
+    minHeight: 280,
     cursor: 'pointer',
     color: '#64748b',
     userSelect: 'none'

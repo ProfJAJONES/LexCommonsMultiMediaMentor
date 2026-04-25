@@ -31,14 +31,15 @@ function midiToNote(midi: number): { name: string; octave: number; index: number
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const START_OCTAVE = 2   // C2 ≈ 65 Hz
-const NUM_OCTAVES  = 4   // C2 → B5 covers the full speech range
+const NUM_OCTAVES  = 5   // C2 → B6 — matches pitch graph's C2–C7 range (C7 added as end key)
 
-const KW  = 20   // white key width  (px in SVG units)
-const KH  = 64   // white key height
-const BW  = 12   // black key width
-const BH  = 40   // black key height
-const OCT = WHITE_INDICES.length * KW  // 7 × 20 = 140px per octave
-const TOT = NUM_OCTAVES * OCT          // total SVG width
+const KW  = 18   // white key width  (px in SVG units)
+const KH  = 60   // white key height
+const BW  = 11   // black key width
+const BH  = 38   // black key height
+const OCT = WHITE_INDICES.length * KW  // 7 × 18 = 126px per octave
+// 5 octaves (C2–B6) + one extra C7 key = 36 white keys × 18 = 648 natural SVG width
+const TOT = NUM_OCTAVES * OCT + KW
 
 interface Props {
   hz: number       // current pitch in Hz, 0 = silent
@@ -121,6 +122,25 @@ export function PianoKeyboard({ hz, width = TOT }: Props) {
     })
   }
 
+  // Extra C7 white key at the right end (matches pitch graph's upper bound)
+  const c7x = NUM_OCTAVES * OCT
+  const c7Lit = isActive(0, START_OCTAVE + NUM_OCTAVES)
+  whites.push(
+    <rect key="w-c7"
+      x={c7x + 0.5} y={0.5} width={KW - 1} height={KH - 1}
+      fill={c7Lit ? '#38bdf8' : '#f1f5f9'}
+      stroke="#475569" strokeWidth={0.6} rx={2}
+    />
+  )
+  labels.push(
+    <text key="ol-c7"
+      x={c7x + KW / 2} y={KH + 12}
+      textAnchor="middle" fontSize={8} fill="#475569"
+    >
+      C{START_OCTAVE + NUM_OCTAVES}
+    </text>
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 12 }}>
@@ -132,13 +152,13 @@ export function PianoKeyboard({ hz, width = TOT }: Props) {
         </span>
       </div>
 
-      {/* SVG keyboard — scales to fit the given width */}
+      {/* SVG keyboard — scales to `width` prop, scrolls if narrower than natural size */}
       <div style={{ overflowX: 'auto' }}>
         <svg
           viewBox={`0 0 ${TOT} ${KH + 16}`}
           width={width}
           height={Math.round((KH + 16) * (width / TOT))}
-          style={{ display: 'block' }}
+          style={{ display: 'block', minWidth: Math.min(width, TOT) }}
         >
           {whites}
           {labels}

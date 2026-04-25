@@ -1,11 +1,8 @@
-import { app, BrowserWindow, shell, ipcMain, dialog, protocol, net, desktopCapturer, systemPreferences } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, dialog, protocol, net, systemPreferences, desktopCapturer } from 'electron'
 import { join, resolve, normalize } from 'path'
 import { homedir } from 'os'
+import { autoUpdater } from 'electron-updater'
 import { registerIpcHandlers } from './ipcHandlers'
-
-// Holds the source ID the user selected in the renderer so the
-// displayMediaRequestHandler can grant it when getDisplayMedia() fires.
-let pendingCaptureSourceId: string | null = null
 
 // Register the custom 'media' protocol before app is ready so it is
 // treated as secure and supports streaming (range requests).
@@ -33,8 +30,16 @@ function createWindow(): void {
     }
   })
 
-  win.on('ready-to-show', () => {
+  win.on('ready-to-show', async () => {
     win.show()
+    // Ask for permissions sequentially AFTER the window is visible and frontmost.
+    // Simultaneous requests cause macOS to queue them — the user clicks Allow on
+    // camera while the mic dialog is hidden, then misses/dismisses the mic dialog.
+    // Sequential + awaited ensures each dialog is the only one on screen.
+    if (process.platform === 'darwin') {
+      await systemPreferences.askForMediaAccess('camera').catch(() => {})
+      await systemPreferences.askForMediaAccess('microphone').catch(() => {})
+    }
   })
 
   // Allow the renderer to use camera and microphone via getUserMedia
@@ -43,18 +48,25 @@ function createWindow(): void {
     callback(allowed.includes(permission))
   })
 
-  // Grant the source the user already picked — no OS picker shown
-  win.webContents.session.setDisplayMediaRequestHandler(async (_request, callback) => {
-    const sourceId = pendingCaptureSourceId
-    pendingCaptureSourceId = null
-    if (!sourceId) { callback({}); return }
-    const sources = await desktopCapturer.getSources({
-      types: ['window', 'screen'],
-      thumbnailSize: { width: 1, height: 1 }
-    })
-    const source = sources.find(s => s.id === sourceId)
-    callback(source ? { video: source, audio: 'loopback' } : {})
-  })
+  // Electron 30+ requires setDisplayMediaRequestHandler to be registered or
+  // getDisplayMedia() is silently rejected in the renderer.
+  // useSystemPicker: true shows the native macOS screen picker. After the user
+  // picks a source, Electron calls this handler with request.video set to the
+  // selected DesktopCapturerSource — we must pass it through the callback or
+  // the request is denied (callback({}) = deny).
+  win.webContents.session.setDisplayMediaRequestHandler(async (request, callback) => {
+    console.log('[displayMedia] request.video:', request.video, '| type:', typeof request.video)
+    if (request.video && typeof request.video === 'object') {
+      console.log('[displayMedia] passing through source id:', (request.video as { id?: string }).id)
+      callback({ video: request.video, audio: request.audio })
+      return
+    }
+    // request.video is null/undefined or boolean true — fall back to desktopCapturer screen source
+    console.log('[displayMedia] falling back to desktopCapturer screen source')
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })
+    console.log('[displayMedia] screen sources found:', sources.map(s => s.name))
+    callback(sources[0] ? { video: sources[0] } : {})
+  }, { useSystemPicker: true })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
@@ -70,12 +82,7 @@ function createWindow(): void {
 
 registerIpcHandlers(ipcMain, dialog)
 
-// Store the user-selected source ID before getDisplayMedia() is called
-ipcMain.handle('desktop:prepareCapture', (_event, sourceId: string) => {
-  pendingCaptureSourceId = sourceId
-})
-
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Serve local files via media:// so the renderer can load them regardless
   // of whether it is running from localhost (dev) or a file:// origin (prod).
   protocol.handle('media', async (request) => {
@@ -105,14 +112,47 @@ app.whenReady().then(() => {
     })
   })
 
-  // On macOS, proactively request system-level camera and mic access so the
-  // OS permission dialog appears the first time the user clicks Webcam.
+  createWindow()
+
+  // Trigger the macOS screen recording TCC prompt on first launch.
+  // desktopCapturer.getSources() returns empty but causes macOS to show the
+  // "LexCommons wants to record your screen" banner — so permission is in place
+  // by the time the user clicks Record Screen.
   if (process.platform === 'darwin') {
-    systemPreferences.askForMediaAccess('camera').catch(() => {})
-    systemPreferences.askForMediaAccess('microphone').catch(() => {})
+    const screenStatus = systemPreferences.getMediaAccessStatus('screen')
+    if (screenStatus === 'not-determined') {
+      desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } }).catch(() => {})
+    }
   }
 
-  createWindow()
+  // Check for updates a few seconds after launch (only in production)
+  if (!process.env['ELECTRON_RENDERER_URL']) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(() => {})
+    }, 5000)
+  }
+
+  autoUpdater.on('update-available', (info) => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Available',
+      message: `Version ${info.version} is available.`,
+      detail: 'It will be downloaded in the background and installed when you restart the app.',
+      buttons: ['OK']
+    })
+  })
+
+  autoUpdater.on('update-downloaded', () => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Ready',
+      message: 'Update downloaded.',
+      detail: 'Restart the app to apply the update.',
+      buttons: ['Restart Now', 'Later']
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall()
+    })
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

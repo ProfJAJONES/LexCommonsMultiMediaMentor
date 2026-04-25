@@ -1,8 +1,26 @@
 import { IpcMain, Dialog, shell, desktopCapturer, app, BrowserWindow, systemPreferences } from 'electron'
-import { readFileSync, writeFileSync, unlinkSync } from 'fs'
+import { execSync } from 'child_process'
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs'
 import { join, basename, extname, resolve, normalize } from 'path'
 import { homedir } from 'os'
 import { tmpdir } from 'os'
+
+// ── Persistent key-value store backed by a JSON file in userData ──────────────
+// localStorage is origin-scoped (localhost:5173 in dev vs file:// in prod),
+// so the API key saved in dev disappears in the packaged app. This store
+// always writes to the same path regardless of origin.
+function getStorePath() {
+  return join(app.getPath('userData'), 'app-settings.json')
+}
+function readStore(): Record<string, string> {
+  try {
+    if (!existsSync(getStorePath())) return {}
+    return JSON.parse(readFileSync(getStorePath(), 'utf-8'))
+  } catch { return {} }
+}
+function writeStore(data: Record<string, string>) {
+  try { writeFileSync(getStorePath(), JSON.stringify(data), 'utf-8') } catch { /* ignore */ }
+}
 import ffmpegStatic from 'ffmpeg-static'
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
@@ -25,16 +43,23 @@ function getFfmpegPath(): string {
 export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
   // List available screens and windows for screen recording
   ipcMain.handle('desktop:getSources', async () => {
-    const sources = await desktopCapturer.getSources({
-      types: ['window', 'screen'],
-      thumbnailSize: { width: 320, height: 200 },
-      fetchWindowIcons: true
+    // fetchWindowIcons can fail on macOS 15 — omit it so getSources never throws.
+    // Request screens first; if that returns nothing, include windows too.
+    let sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 320, height: 200 }
     })
+    if (sources.length === 0) {
+      sources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 320, height: 200 }
+      })
+    }
     return sources.map(s => ({
       id: s.id,
       name: s.name,
       thumbnail: s.thumbnail.toDataURL(),
-      appIcon: s.appIcon?.toDataURL() ?? null
+      appIcon: null
     }))
   })
 
@@ -513,5 +538,79 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
       camera: systemPreferences.getMediaAccessStatus('camera'),
       microphone: systemPreferences.getMediaAccessStatus('microphone')
     }
+  })
+
+  ipcMain.handle('permissions:getScreenRecordingStatus', () => {
+    if (process.platform !== 'darwin') return 'granted'
+    return systemPreferences.getMediaAccessStatus('screen')
+  })
+
+  ipcMain.handle('system:openScreenRecordingSettings', async () => {
+    await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+  })
+
+  // Origin-independent persistent store — survives dev↔prod switches
+  ipcMain.handle('store:get', (_event, key: string) => {
+    return readStore()[key] ?? null
+  })
+  ipcMain.handle('store:getAll', () => {
+    return readStore()
+  })
+  ipcMain.handle('store:set', (_event, key: string, value: string | null) => {
+    const data = readStore()
+    if (value === null || value === undefined) delete data[key]
+    else data[key] = value
+    writeStore(data)
+  })
+
+  ipcMain.on('window:minimize', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize()
+  })
+
+  // Reset the Renderer helper's TCC microphone entry so getUserMedia can prompt again.
+  // macOS tracks org.lexcommons.multimedia-mentor.helper.Renderer SEPARATELY from the
+  // main bundle — resetting only the main bundle (as tccutil docs suggest) leaves the
+  // renderer helper's "denied" entry intact, which is why the mic prompt never re-fires.
+  ipcMain.handle('permissions:resetRendererMicTCC', async () => {
+    if (process.platform !== 'darwin') return { ok: true }
+    // Reset ALL helper bundles — audio capture can run in any of them.
+    // macOS tracks each helper separately; resetting only one leaves the others denied.
+    const bundleIds = [
+      // Production (packaged app) bundle IDs
+      'org.lexcommons.multimedia-mentor',
+      'org.lexcommons.multimedia-mentor.helper',
+      'org.lexcommons.multimedia-mentor.helper.Renderer',
+      'org.lexcommons.multimedia-mentor.helper.GPU',
+      'org.lexcommons.multimedia-mentor.helper.Plugin',
+      // Development (electron-vite dev) bundle IDs
+      'com.github.Electron',
+      'com.github.Electron.helper',
+    ]
+    let reset = 0
+    for (const id of bundleIds) {
+      try {
+        execSync(`tccutil reset Microphone "${id}"`, { stdio: 'pipe' })
+        reset++
+      } catch { /* no entry to reset — fine */ }
+    }
+    return { ok: true, reset }
+  })
+
+  ipcMain.handle('permissions:requestMedia', async () => {
+    if (process.platform !== 'darwin') return { camera: true, microphone: true }
+    // Ask for access — this shows a TCC prompt if status is not-determined.
+    // If already denied, askForMediaAccess returns false and we open System Settings
+    // so the user can re-enable it manually.
+    const [camera, microphone] = await Promise.all([
+      systemPreferences.askForMediaAccess('camera'),
+      systemPreferences.askForMediaAccess('microphone')
+    ])
+    if (!microphone) {
+      await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone')
+    }
+    if (!camera) {
+      await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Camera')
+    }
+    return { camera, microphone }
   })
 }

@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-mac:
     runs-on: macos-latest
@@ -25,12 +28,8 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-        run: npm run dist:mac
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-dmg
-          path: dist-app/*.dmg
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:mac -- --publish always
 
   build-win:
     runs-on: windows-latest
@@ -45,9 +44,6 @@ jobs:
       - run: npm ci --legacy-peer-deps
 
       - name: Build Windows installer
-        run: npm run dist:win
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer
-          path: dist-app/*.exe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:win -- --publish always

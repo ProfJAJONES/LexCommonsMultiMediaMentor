@@ -28,7 +28,8 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, Props>(
         onEnded={onEnded}
         style={{
           width: '100%',
-          maxHeight: 380,
+          height: '100%',
+          objectFit: 'contain',
           background: '#000',
           borderRadius: 8,
           display: 'block'

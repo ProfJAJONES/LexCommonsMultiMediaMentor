@@ -28,9 +28,6 @@ contextBridge.exposeInMainWorld('api', {
   getCaptureSources: (): Promise<CaptureSource[]> =>
     ipcRenderer.invoke('desktop:getSources'),
 
-  prepareCapture: (sourceId: string): Promise<void> =>
-    ipcRenderer.invoke('desktop:prepareCapture', sourceId),
-
   saveRecording: (buffer: Uint8Array, name: string): Promise<string | { fallback: true; webmPath: string } | null> =>
     ipcRenderer.invoke('desktop:saveRecording', buffer, name),
 
@@ -53,6 +50,30 @@ contextBridge.exposeInMainWorld('api', {
 
   getMediaPermissions: (): Promise<{ camera: string; microphone: string }> =>
     ipcRenderer.invoke('permissions:getMediaStatus'),
+
+  requestMediaAccess: (): Promise<{ camera: boolean; microphone: boolean }> =>
+    ipcRenderer.invoke('permissions:requestMedia'),
+
+  resetRendererMicTCC: (): Promise<{ ok: boolean; reset?: number }> =>
+    ipcRenderer.invoke('permissions:resetRendererMicTCC'),
+
+  getScreenRecordingStatus: (): Promise<string> =>
+    ipcRenderer.invoke('permissions:getScreenRecordingStatus'),
+
+  openScreenRecordingSettings: (): Promise<void> =>
+    ipcRenderer.invoke('system:openScreenRecordingSettings'),
+
+  minimizeWindow: (): void =>
+    ipcRenderer.send('window:minimize'),
+
+  storeGet: (key: string): Promise<string | null> =>
+    ipcRenderer.invoke('store:get', key),
+
+  storeGetAll: (): Promise<Record<string, string>> =>
+    ipcRenderer.invoke('store:getAll'),
+
+  storeSet: (key: string, value: string | null): Promise<void> =>
+    ipcRenderer.invoke('store:set', key, value),
 })
 
 export type CaptureSource = {

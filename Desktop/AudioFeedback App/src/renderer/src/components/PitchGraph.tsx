@@ -12,31 +12,31 @@ export interface PitchGraphHandle {
   toDataURL: () => string | null
 }
 
-// Full operatic range: C2 (deep bass) → C6 (soprano high C)
-const MIN_HZ = 65    // C2
-const MAX_HZ = 1047  // C6
+// Practical vocal/speech range: C2 → C7
+const MIN_HZ = 65.4   // C2
+const MAX_HZ = 2093.0 // C7
 
-const GUTTER_L = 52  // wider — accommodates clef symbol + partial staff
-const GUTTER_R = 48  // wider — Hz labels go up to 4 digits
+const GUTTER_L = 62  // accommodates clef symbol + partial staff
+const GUTTER_R = 48  // Hz labels up to 6 chars ("C7 2093")
 
 // Musical reference points used for grid lines & right-side labels
 const GRID_NOTES = [
-  { hz: 65,   label: 'C2'  },
-  { hz: 130,  label: 'C3'  },
-  { hz: 262,  label: 'C4'  },  // Middle C
-  { hz: 440,  label: 'A4'  },  // Concert A
-  { hz: 523,  label: 'C5'  },
-  { hz: 880,  label: 'A5'  },
-  { hz: 1047, label: 'C6'  },
+  { hz: 65.4,   label: 'C2'  },
+  { hz: 130.8,  label: 'C3'  },
+  { hz: 261.6,  label: 'C4'  },  // Middle C
+  { hz: 440.0,  label: 'A4'  },  // Concert A
+  { hz: 523.3,  label: 'C5'  },
+  { hz: 1046.5, label: 'C6'  },
+  { hz: 2093.0, label: 'C7'  },
 ]
 
-// Vocal register bands
+// Register bands C2–C7
 const BANDS = [
-  { lo: 65,   hi: 130,  color: 'rgba(139,92,246,0.08)',  label: 'Bass'      },
-  { lo: 130,  hi: 220,  color: 'rgba(52,211,153,0.08)',  label: 'Baritone'  },
-  { lo: 220,  hi: 350,  color: 'rgba(56,189,248,0.08)',  label: 'Tenor'     },
-  { lo: 350,  hi: 600,  color: 'rgba(251,191,36,0.08)',  label: 'Alto/Mezzo'},
-  { lo: 600,  hi: 1047, color: 'rgba(248,113,113,0.08)', label: 'Soprano'   },
+  { lo: 65.4,   hi: 130.8,  color: 'rgba(139,92,246,0.08)',  label: 'Bass'      },
+  { lo: 130.8,  hi: 261.6,  color: 'rgba(52,211,153,0.08)',  label: 'Baritone'  },
+  { lo: 261.6,  hi: 523.3,  color: 'rgba(56,189,248,0.08)',  label: 'Tenor'     },
+  { lo: 523.3,  hi: 1046.5, color: 'rgba(251,191,36,0.08)',  label: 'Alto/Mezzo'},
+  { lo: 1046.5, hi: 2093.0, color: 'rgba(248,113,113,0.08)', label: 'Soprano'   },
 ]
 
 function pitchColor(hz: number): string {
@@ -133,25 +133,24 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
     ctx.fillStyle = 'rgba(251,191,36,0.18)'
     ctx.fillRect(3, a4Top, staffRight - 3, a4Bot - a4Top)
 
-    // ── Shared clef font size — match bass clef (which is already accurate) ──
-    const bassStaffPx = hzToY(98.00, height) - hzToY(220.00, height)
-    const clefFontPx  = Math.max(18, Math.round(bassStaffPx * 0.95))
     ctx.fillStyle = '#64748b'
     ctx.textAlign = 'center'
 
     // ── Treble clef 𝄞 ──────────────────────────────────────────────────────
-    // The bottom circle of the treble clef wraps around the G4 line (392 Hz).
-    // With textBaseline='alphabetic' in Georgia the curl sits just above the
-    // baseline, so anchoring the baseline at G4 + a small downward nudge
-    // (≈ 18% of one staff space) centres the circle on the G4 line.
-    const trebleSpacePx = (hzToY(329.63, height) - hzToY(392.00, height)) // one space: E4→G4
-    ctx.font = `${clefFontPx}px Georgia, "Times New Roman", serif`
+    // Size the glyph so its top curl lands at the F5 staff line.
+    // With textBaseline='alphabetic': baseline = G4_y + 0.20*fontPx
+    // Glyph top ≈ baseline − 0.80*fontPx  →  fontPx = (G4_y − F5_y) / 0.60
+    const G4y = hzToY(392.00, height)
+    const trebleClefFontPx = Math.max(20, Math.round((G4y - hzToY(698.46, height)) / 0.60))
+    ctx.font = `${trebleClefFontPx}px Georgia, "Times New Roman", serif`
     ctx.textBaseline = 'alphabetic'
-    ctx.fillText('\u{1D11E}', clefCx, hzToY(392.00, height) + trebleSpacePx * 0.18)
+    ctx.fillText('\u{1D11E}', clefCx, G4y + trebleClefFontPx * 0.20)
 
     // ── Bass clef 𝄢 ────────────────────────────────────────────────────────
     // Top of glyph aligns near the top staff line (A3); nub lands on F3 (174.61 Hz)
-    ctx.font = `${clefFontPx}px Georgia, "Times New Roman", serif`
+    const bassStaffPx = Math.abs(hzToY(98.00, height) - hzToY(220.00, height))
+    const bassClefFontPx = Math.max(18, Math.round(bassStaffPx * 0.95))
+    ctx.font = `${bassClefFontPx}px Georgia, "Times New Roman", serif`
     ctx.textBaseline = 'top'
     ctx.fillText('\u{1D122}', clefCx, hzToY(220.00, height))
 

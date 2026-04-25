@@ -3,7 +3,7 @@ import type { Domain } from '../hooks/useDomain'
 import { DOMAIN_CONFIG } from '../hooks/useDomain'
 import { PRACTICE_CHARACTERS, type PracticeCharacter } from '../config/practiceCharacters'
 import { useLivePractice } from '../hooks/useLivePractice'
-import { useWhisperTranscription } from '../hooks/useWhisperTranscription'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { useAIKnowledgeBase } from '../hooks/useAIKnowledgeBase'
 import { streamCompletion, type AIProvider } from '../utils/aiClient'
 
@@ -11,6 +11,7 @@ interface Props {
   apiKey: string
   provider: AIProvider
   domain: Domain
+  onSessionData?: (messages: Array<{ speaker: string; text: string; timestamp: number }>) => void
 }
 
 // ─── TTS helper ───────────────────────────────────────────────────────────────
@@ -26,7 +27,7 @@ function speak(text: string) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function LivePracticePanel({ apiKey, provider, domain }: Props) {
+export function LivePracticePanel({ apiKey, provider, domain, onSessionData }: Props) {
   const characters = PRACTICE_CHARACTERS[domain]
   const [character, setCharacter] = useState<PracticeCharacter>(characters[0])
   const [ttsEnabled, setTtsEnabled] = useState(false)
@@ -39,7 +40,7 @@ export function LivePracticePanel({ apiKey, provider, domain }: Props) {
 
   // Conversation
   const practice = useLivePractice(apiKey, provider)
-  const speech = useWhisperTranscription()
+  const speech = useSpeechRecognition()
   const kb = useAIKnowledgeBase(domain)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -57,9 +58,11 @@ export function LivePracticePanel({ apiKey, provider, domain }: Props) {
   const characterRef = useRef(character)
   const kbRef = useRef(kb)
   const practiceRef = useRef(practice)
+  const benchTempRef = useRef(benchTemp)
   useEffect(() => { characterRef.current = character }, [character])
   useEffect(() => { kbRef.current = kb }, [kb])
   useEffect(() => { practiceRef.current = practice })
+  useEffect(() => { benchTempRef.current = benchTemp }, [benchTemp])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -81,17 +84,7 @@ export function LivePracticePanel({ apiKey, provider, domain }: Props) {
       const text = speech.getTranscript()
       if (text && !practiceRef.current.isResponding) {
         setInput('')
-        // Build effective character with bench temp injected
-        const ch = characterRef.current
-        const hasBench = ch.id === 'appellate_panel' || ch.id === 'supreme_court'
-        const benchInstruction = hasBench
-          ? (benchTemp === 'cold'
-              ? '\n\nBench temperature: COLD. Let counsel develop their full argument before asking questions. One brief, polite question per turn. Do not interrupt mid-sentence.'
-              : benchTemp === 'warm'
-              ? '\n\nBench temperature: WARM. Ask focused questions but let counsel finish their point first. One or two questions per turn.'
-              : '\n\nBench temperature: HOT. Interrupt often. Ask rapid hypotheticals. Multiple judges pile on. Press hard on every weak point.')
-          : ''
-        const eff = hasBench ? { ...ch, systemPrompt: ch.systemPrompt + benchInstruction } : ch
+        const eff = applyBenchTemp(characterRef.current, benchTempRef.current)
         practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock())
       }
     }
@@ -233,17 +226,21 @@ If no coaching is needed, respond with exactly: NO_INTERRUPT`
     prevIsResponding.current = practice.isResponding
   }, [practice.isResponding]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Returns the character with bench temperature injected for appellate/SCOTUS
+  // Injects bench temperature instructions for appellate/SCOTUS characters.
+  // Pure — takes ch and temp explicitly so it works from both event handlers
+  // (use state values) and stale-closure-prone effects (use ref values).
+  function applyBenchTemp(ch: PracticeCharacter, temp: 'cold' | 'warm' | 'hot'): PracticeCharacter {
+    if (ch.id !== 'appellate_panel' && ch.id !== 'supreme_court') return ch
+    const instruction = temp === 'cold'
+      ? '\n\nBench temperature: COLD. Let counsel develop their full argument before asking questions. One brief, polite question per turn. Do not interrupt mid-sentence.'
+      : temp === 'warm'
+      ? '\n\nBench temperature: WARM. Ask focused questions but let counsel finish their point first. One or two questions per turn.'
+      : '\n\nBench temperature: HOT. Interrupt often. Ask rapid hypotheticals. Multiple judges pile on. Press hard on every weak point.'
+    return { ...ch, systemPrompt: ch.systemPrompt + instruction }
+  }
+
   function effectiveCharacter(): PracticeCharacter {
-    const hasBench = character.id === 'appellate_panel' || character.id === 'supreme_court'
-    if (!hasBench) return character
-    const instruction =
-      benchTemp === 'cold'
-        ? '\n\nBench temperature: COLD. Let counsel develop their full argument before asking questions. One brief, polite question per turn. Do not interrupt mid-sentence.'
-        : benchTemp === 'warm'
-        ? '\n\nBench temperature: WARM. Ask focused questions but let counsel finish their point first. One or two questions per turn.'
-        : '\n\nBench temperature: HOT. Interrupt often. Ask rapid hypotheticals. Multiple judges pile on. Press hard on every weak point.'
-    return { ...character, systemPrompt: character.systemPrompt + instruction }
+    return applyBenchTemp(character, benchTemp)
   }
 
   // Save session transcript as HTML
@@ -282,14 +279,12 @@ ${rows}
     await window.api.saveReport(html)
   }
 
-  // Start session — kick off model preload so it's warm when user first speaks
   function handleStart() {
     practice.startSession(effectiveCharacter())
-    speech.preload()
   }
 
-  // End session
   function handleEnd() {
+    if (practice.messages.length > 0) onSessionData?.(practice.messages)
     practice.endSession()
     speech.abort()
     window.speechSynthesis?.cancel()
@@ -316,18 +311,9 @@ ${rows}
     if (!text || practiceRef.current.isResponding) return
     speech.abort()
     setInput('')
-    const ch = characterRef.current
-    const hasBench = ch.id === 'appellate_panel' || ch.id === 'supreme_court'
-    const benchInstruction = hasBench
-      ? (benchTemp === 'cold'
-          ? '\n\nBench temperature: COLD. Let counsel develop their full argument before asking questions. One brief, polite question per turn. Do not interrupt mid-sentence.'
-          : benchTemp === 'warm'
-          ? '\n\nBench temperature: WARM. Ask focused questions but let counsel finish their point first. One or two questions per turn.'
-          : '\n\nBench temperature: HOT. Interrupt often. Ask rapid hypotheticals. Multiple judges pile on. Press hard on every weak point.')
-      : ''
-    const eff = hasBench ? { ...ch, systemPrompt: ch.systemPrompt + benchInstruction } : ch
+    const eff = applyBenchTemp(character, benchTemp)
     practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock())
-  }, [input, speech, benchTemp]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [input, speech, character, benchTemp]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -444,7 +430,7 @@ ${rows}
 
           {noApiKey && (
             <div style={{ color: '#dc2626', fontSize: 11, marginTop: 8, padding: '6px 8px', background: '#fef2f2', borderRadius: 5, border: '1px solid #fca5a5' }}>
-              Add your API key in the AI Coach tab — click ⚙ Settings and paste your key. Press Enter or click Save.
+              Add your API key in ⚙ Settings &amp; AI Keys (bottom of sidebar) — paste your key and it saves automatically.
             </div>
           )}
 
@@ -566,14 +552,6 @@ ${rows}
 
           {/* Input area */}
           <div style={s.inputArea}>
-
-            {/* Model loading indicator */}
-            {speech.modelStatus === 'loading' && (
-              <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', padding: '4px 0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                <ThinkingDots />
-                Downloading speech model (one-time, ~40 MB)…
-              </div>
-            )}
 
             {/* Primary: speech button */}
             {!practice.isResponding && !coachNote && (() => {

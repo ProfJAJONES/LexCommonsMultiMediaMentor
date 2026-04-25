@@ -23,6 +23,12 @@ exports.default = async function sign(configuration) {
     return
   }
 
+  // Entitlements file — must include allow-jit or V8 crashes on hardened runtime
+  const entitlements = path.join(__dirname, '..', 'resources', 'entitlements.mac.plist')
+  if (!fs.existsSync(entitlements)) {
+    throw new Error(`entitlements.mac.plist not found at ${entitlements}`)
+  }
+
   // Build a deterministic tmp path based on the app name
   const appName = path.basename(appPath)
   const tmpDir = path.join(os.tmpdir(), 'eb-sign-' + process.pid)
@@ -56,7 +62,10 @@ exports.default = async function sign(configuration) {
       // Skip the .app itself and any nested .app bundles — signed as bundles below
       if (f.endsWith('.app') || f.includes('.app/Contents/MacOS/') === false && f.endsWith('.app')) continue
       try {
-        execSync(`codesign --sign "${identity}" --force --options runtime --timestamp "${f}"`, { stdio: 'pipe' })
+        // Executables and native addons need entitlements so V8 JIT works in helpers
+        const needsEntitlements = f.includes('/MacOS/') || f.endsWith('.node')
+        const entArgs = needsEntitlements ? `--entitlements "${entitlements}" ` : ''
+        execSync(`codesign --sign "${identity}" --force --options runtime --timestamp ${entArgs}"${f}"`, { stdio: 'pipe' })
         signed++
       } catch { /* binary may not need signing */ }
     }
@@ -65,18 +74,73 @@ exports.default = async function sign(configuration) {
     console.warn('  • individual binary signing failed (non-fatal):', e.message)
   }
 
-  // Step 2: sign the whole .app bundle (catches nested .frameworks and .apps)
+  // Step 2: sign nested bundles with entitlements, then the main bundle WITHOUT --deep.
+  //
+  // WHY: `codesign --deep --entitlements` only injects entitlements into the TOP-LEVEL
+  // bundle. Every nested helper .app is re-signed with hardened runtime (flags=0x10000)
+  // but zero entitlements. macOS then blocks microphone access before TCC is even
+  // consulted — the permission dialog never appears. Fix: sign each nested .app and
+  // .framework explicitly with --entitlements (innermost first), then sign the main
+  // bundle WITHOUT --deep so we don't overwrite the helpers we just signed correctly.
+
+  // 2a: sign .framework bundles deepest-first
+  console.log('  • signing .framework bundles...')
+  try {
+    const fwOut = execSync(
+      `find "${tmpApp}" -name "*.framework" -type d`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+    const frameworks = fwOut.split('\n').filter(Boolean)
+    frameworks.sort((a, b) => (b.match(/\//g) || []).length - (a.match(/\//g) || []).length)
+    for (const fw of frameworks) {
+      try {
+        execSync(
+          `codesign --sign "${identity}" --force --options runtime --timestamp --entitlements "${entitlements}" "${fw}"`,
+          { stdio: 'pipe' }
+        )
+        console.log(`  • signed framework: ${path.basename(fw)}`)
+      } catch { /* framework may not need signing */ }
+    }
+  } catch (e) {
+    console.warn('  • framework signing non-fatal:', e.message)
+  }
+
+  // 2b: sign nested helper .app bundles deepest-first with full entitlements
+  console.log('  • signing nested helper .app bundles...')
+  try {
+    const helperOut = execSync(
+      `find "${tmpApp}/Contents/Frameworks" -name "*.app" -type d 2>/dev/null || true`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+    const nestedApps = helperOut.split('\n').filter(Boolean)
+    nestedApps.sort((a, b) => (b.match(/\//g) || []).length - (a.match(/\//g) || []).length)
+    for (const nestedApp of nestedApps) {
+      try {
+        execSync(
+          `codesign --sign "${identity}" --force --options runtime --timestamp --entitlements "${entitlements}" "${nestedApp}"`,
+          { stdio: 'pipe' }
+        )
+        console.log(`  • signed helper: ${path.basename(nestedApp)}`)
+      } catch (e) {
+        console.warn(`  • could not sign ${path.basename(nestedApp)}: ${e.stderr?.toString() || e.message}`)
+      }
+    }
+  } catch (e) {
+    console.warn('  • nested .app signing non-fatal:', e.message)
+  }
+
+  // 2c: sign the main bundle WITHOUT --deep (helpers are already correctly signed above)
   const cmd = [
     'codesign',
     '--sign', `"${identity}"`,
     '--force',
-    '--deep',
     '--options', 'runtime',
     '--timestamp',
+    '--entitlements', `"${entitlements}"`,
     `"${tmpApp}"`
   ].join(' ')
 
-  console.log(`  • signing bundle: ${tmpApp}`)
+  console.log(`  • signing main bundle: ${tmpApp}`)
   try {
     execSync(cmd, { stdio: 'pipe' })
     console.log('  • signed successfully')

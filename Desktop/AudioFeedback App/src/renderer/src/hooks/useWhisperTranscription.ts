@@ -67,8 +67,24 @@ export function useWhisperTranscription() {
     let stream: MediaStream
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch {
-      setMicError('Microphone access denied. Check permissions in System Settings.')
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e))
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setMicError('Microphone access denied. Open System Settings → Privacy & Security → Microphone and enable this app, then restart it.')
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setMicError('No microphone found. Plug in a microphone and try again.')
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        setMicError('Microphone is in use by another app (Zoom, FaceTime, etc.). Close it and try again.')
+      } else {
+        setMicError(`Microphone unavailable: ${err.message}`)
+      }
+      return
+    }
+
+    const liveTracks = stream.getAudioTracks().filter(t => t.readyState === 'live')
+    if (liveTracks.length === 0) {
+      stream.getTracks().forEach(t => t.stop())
+      setMicError('Microphone opened but no audio tracks are active. Check System Settings → Sound → Input volume.')
       return
     }
 
