@@ -1,6 +1,6 @@
 {
   "name": "lexcommons-multimedia-mentor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Oral advocacy analysis app with real-time pitch/decibel graphs, video annotation, and professor feedback",
   "main": "out/main/index.js",
   "scripts": {
