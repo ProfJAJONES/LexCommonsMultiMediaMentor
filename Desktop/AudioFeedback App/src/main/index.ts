@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, ipcMain, dialog, protocol, net, systemPreferences, desktopCapturer } from 'electron'
 import { join, resolve, normalize } from 'path'
 import { homedir } from 'os'
+import { execSync } from 'child_process'
 import { autoUpdater } from 'electron-updater'
 import { registerIpcHandlers } from './ipcHandlers'
 
@@ -12,6 +13,29 @@ protocol.registerSchemesAsPrivileged([
     privileges: { secure: true, supportFetchAPI: true, stream: true, bypassCSP: true }
   }
 ])
+
+const HELPER_BUNDLES = [
+  'org.lexcommons.multimedia-mentor',
+  'org.lexcommons.multimedia-mentor.helper',
+  'org.lexcommons.multimedia-mentor.helper.Renderer',
+  'org.lexcommons.multimedia-mentor.helper.GPU',
+  'org.lexcommons.multimedia-mentor.helper.Plugin',
+]
+
+// Request camera or microphone access, auto-resetting stale denied TCC entries.
+// macOS silently denies helpers when Electron binaries change between DMG builds —
+// the entry shows as "denied" but never appeared in System Settings. Detecting this
+// and resetting automatically means users never need terminal commands.
+async function grantMediaAccess(type: 'camera' | 'microphone'): Promise<void> {
+  const granted = await systemPreferences.askForMediaAccess(type).catch(() => false)
+  if (!granted && systemPreferences.getMediaAccessStatus(type) === 'denied') {
+    const service = type === 'camera' ? 'Camera' : 'Microphone'
+    for (const id of HELPER_BUNDLES) {
+      try { execSync(`tccutil reset ${service} "${id}"`, { stdio: 'pipe' }) } catch { /* ok */ }
+    }
+    await systemPreferences.askForMediaAccess(type).catch(() => {})
+  }
+}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -32,13 +56,9 @@ function createWindow(): void {
 
   win.on('ready-to-show', async () => {
     win.show()
-    // Ask for permissions sequentially AFTER the window is visible and frontmost.
-    // Simultaneous requests cause macOS to queue them — the user clicks Allow on
-    // camera while the mic dialog is hidden, then misses/dismisses the mic dialog.
-    // Sequential + awaited ensures each dialog is the only one on screen.
     if (process.platform === 'darwin') {
-      await systemPreferences.askForMediaAccess('camera').catch(() => {})
-      await systemPreferences.askForMediaAccess('microphone').catch(() => {})
+      await grantMediaAccess('camera')
+      await grantMediaAccess('microphone')
     }
   })
 
