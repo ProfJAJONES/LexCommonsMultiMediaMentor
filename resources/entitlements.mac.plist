@@ -17,6 +17,10 @@
   <!-- Hardware: webcam and microphone -->
   <key>com.apple.security.device.camera</key>
   <true/>
+  <!-- Hardened runtime audio entitlement (required for mic under hardenedRuntime: true) -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+  <!-- App Sandbox audio entitlement — kept for safety; ignored under hardened runtime -->
   <key>com.apple.security.device.microphone</key>
   <true/>
   <!-- File access: open/save video files -->
