@@ -108,8 +108,24 @@ function createWindow(): void {
   win.on('ready-to-show', async () => {
     win.show()
     if (process.platform === 'darwin') {
+      // Camera goes through the main-process flow — askForMediaAccess('camera')
+      // works reliably and triggers the standard TCC dialog.
       await grantMediaAccess('camera')
-      await grantMediaAccess('microphone')
+
+      // Microphone is intentionally NOT requested from the main process here.
+      // On at least one machine (Joshua, 2026-04-26, signed/notarized DMG with
+      // every helper plist + signed entitlement verified correct), calling
+      // askForMediaAccess('microphone') from the main process auto-rejects in
+      // <50 ms with no TCC dialog and locks the bundle's mic status to
+      // 'denied' for the rest of the session — so every later renderer call
+      // fails too. macOS short-circuits the request before it reaches tccd.
+      // Letting the renderer's getUserMedia({ audio: true }) be the first
+      // mic-touching call produces a normal dialog (the request comes from
+      // the helper bundle, which is the path TCC actually expects to see for
+      // capture). The renderer already does this audio probe on App mount,
+      // and the manual "Fix Microphone Access" + "Reset Permissions" +
+      // "Aggressive Reset (sudo)" buttons remain available if the renderer
+      // path itself fails for a user.
     }
   })
 
