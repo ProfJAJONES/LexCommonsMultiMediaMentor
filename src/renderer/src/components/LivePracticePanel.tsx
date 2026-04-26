@@ -123,19 +123,35 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
   // otherwise macOS silently swaps in the built-in FaceTime camera even when
   // the user picked an external webcam.
   async function openCamera() {
+    console.log('[live-cam] requested deviceId:', selectedCameraId || '(default)')
+    let stream: MediaStream | null = null
+    let firstErr: unknown = null
     try {
       const vc = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : true
-      let stream: MediaStream
+      stream = await navigator.mediaDevices.getUserMedia({ video: vc, audio: false })
+    } catch (e) {
+      firstErr = e
+      console.warn('[live-cam] exact deviceId failed, trying default:', e)
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: vc, audio: false })
-      } catch {
-        // Selected device unavailable (unplugged?) — fall back to default.
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      } catch (e2) {
+        const errName = e2 instanceof Error ? e2.name : 'UnknownError'
+        const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
+        const detail = errName === 'NotAllowedError'
+          ? 'macOS blocked camera access. Use the Reset Permissions button on the home screen.'
+          : errName === 'NotReadableError'
+            ? 'Camera is in use by another app or another part of this app.'
+            : `${errName}: ${e2 instanceof Error ? e2.message : String(e2)}`
+        console.error('[live-cam] both attempts failed:', firstErr, e2)
+        setCameraError(`${detail}  |  Camera TCC: ${perms.camera}`)
+        return
       }
+    }
+    if (stream) {
+      const t = stream.getVideoTracks()[0]
+      console.log('[live-cam] opened track:', { label: t?.label, deviceId: t?.getSettings().deviceId })
       setCameraError(null)
       setCameraStream(stream)
-    } catch {
-      setCameraError('Camera access denied')
     }
   }
 

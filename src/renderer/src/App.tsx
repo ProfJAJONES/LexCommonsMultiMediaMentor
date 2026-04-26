@@ -1662,6 +1662,7 @@ ${ann.comments.length === 0
               <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 12 }}>
                 Supports MP4, MOV, WebM, MKV, MP3, WAV, M4A
               </div>
+              <PermissionStatus />
               {webcamError && (
                 <div style={{ marginTop: 12, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 7, color: '#dc2626', fontSize: 12, padding: '8px 12px', maxWidth: 420, lineHeight: 1.5 }}>
                   {webcamError}
@@ -2018,6 +2019,69 @@ function SidebarKeyInput({ apiKey, provider, onSave }: { apiKey: string; provide
       <button onClick={() => setShow(v => !v)} style={{ border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, padding: '0 7px' }}>
         {show ? '🙈' : '👁'}
       </button>
+    </div>
+  )
+}
+
+// Live TCC status for camera + microphone, plus the manual recovery buttons.
+// Shown on the placeholder screen so users can self-diagnose without us.
+function PermissionStatus() {
+  const [status, setStatus] = useState<{ camera: string; microphone: string }>({ camera: '...', microphone: '...' })
+
+  useEffect(() => {
+    let cancelled = false
+    function refresh() {
+      window.api.getMediaPermissions().then(s => { if (!cancelled) setStatus(s) }).catch(() => {})
+    }
+    refresh()
+    const t = setInterval(refresh, 1500)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [])
+
+  function pillColor(s: string) {
+    if (s === 'granted') return { bg: '#ecfdf5', fg: '#047857', border: '#a7f3d0' }
+    if (s === 'denied') return { bg: '#fef2f2', fg: '#b91c1c', border: '#fca5a5' }
+    if (s === 'not-determined') return { bg: '#fefce8', fg: '#a16207', border: '#fde68a' }
+    return { bg: '#f1f5f9', fg: '#475569', border: '#cbd5e1' }
+  }
+  const cam = pillColor(status.camera)
+  const mic = pillColor(status.microphone)
+  const pill: React.CSSProperties = { fontSize: 11, padding: '3px 8px', borderRadius: 999, fontWeight: 600 }
+  const btn: React.CSSProperties = { fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer', fontWeight: 500 }
+
+  const needsHelp = status.camera !== 'granted' || status.microphone !== 'granted'
+
+  return (
+    <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, maxWidth: 480 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <span style={{ ...pill, background: cam.bg, color: cam.fg, border: `1px solid ${cam.border}` }}>📷 Camera: {status.camera}</span>
+        <span style={{ ...pill, background: mic.bg, color: mic.fg, border: `1px solid ${mic.border}` }}>🎙 Mic: {status.microphone}</span>
+      </div>
+      {needsHelp && (
+        <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', lineHeight: 1.5, marginTop: 2 }}>
+          {status.microphone !== 'granted' && status.microphone !== 'not-determined' && (
+            <>If the app does not appear in System Settings → Privacy &amp; Security → Microphone, click <b>Reset Permissions</b> below — this clears macOS&apos;s silent-denial state and prompts again on relaunch.</>
+          )}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          style={btn}
+          onClick={async () => {
+            if (!confirm('Clear camera + microphone permissions and relaunch the app? You will be prompted to grant access again.')) return
+            await window.api.resetAllAndRelaunch()
+          }}
+        >
+          Reset Permissions
+        </button>
+        <button
+          style={btn}
+          onClick={() => { window.api.openMainLog() }}
+          title="Reveal main.log so you can copy it for a bug report"
+        >
+          Open Log
+        </button>
+      </div>
     </div>
   )
 }

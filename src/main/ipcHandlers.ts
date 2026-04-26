@@ -613,4 +613,34 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
     }
     return { camera, microphone }
   })
+
+  // Manual recovery: reset BOTH camera and mic TCC entries for every helper
+  // bundle, then relaunch. Surfaced in the UI as a "Reset Permissions" button
+  // for when the auto-reset on launch did not catch a stale denial state.
+  ipcMain.handle('permissions:resetAllAndRelaunch', async () => {
+    if (process.platform !== 'darwin') return { ok: true }
+    const bundleIds = [
+      'org.lexcommons.multimedia-mentor',
+      'org.lexcommons.multimedia-mentor.helper',
+      'org.lexcommons.multimedia-mentor.helper.Renderer',
+      'org.lexcommons.multimedia-mentor.helper.GPU',
+      'org.lexcommons.multimedia-mentor.helper.Plugin',
+    ]
+    for (const svc of ['Microphone', 'Camera'] as const) {
+      for (const id of bundleIds) {
+        try { execSync(`tccutil reset ${svc} "${id}"`, { stdio: 'pipe' }) } catch { /* ok */ }
+      }
+    }
+    app.relaunch()
+    app.exit(0)
+    return { ok: true }
+  })
+
+  // Reveal main.log so the user can paste it into a bug report.
+  ipcMain.handle('system:openMainLog', async () => {
+    const logPath = join(app.getPath('userData'), 'main.log')
+    if (!existsSync(logPath)) return null
+    await shell.showItemInFolder(logPath)
+    return logPath
+  })
 }

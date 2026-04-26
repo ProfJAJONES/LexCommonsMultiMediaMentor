@@ -2,8 +2,20 @@ import { app, BrowserWindow, shell, ipcMain, dialog, protocol, net, systemPrefer
 import { join, resolve, normalize } from 'path'
 import { homedir } from 'os'
 import { execSync } from 'child_process'
+import { appendFileSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
 import { registerIpcHandlers } from './ipcHandlers'
+
+// File logger — main-process console.log is invisible in a packaged DMG.
+// Anything written here lands at ~/Library/Application Support/<productName>/main.log
+// so we can ask the user to send the log when something goes wrong.
+function logLine(msg: string) {
+  try {
+    const stamp = new Date().toISOString()
+    const line = `[${stamp}] ${msg}\n`
+    appendFileSync(join(app.getPath('userData'), 'main.log'), line)
+  } catch { /* userData may not be ready yet — first calls are fine to drop */ }
+}
 
 // Register the custom 'media' protocol before app is ready so it is
 // treated as secure and supports streaming (range requests).
@@ -22,18 +34,52 @@ const HELPER_BUNDLES = [
   'org.lexcommons.multimedia-mentor.helper.Plugin',
 ]
 
+function tccService(type: 'camera' | 'microphone') {
+  return type === 'camera' ? 'Camera' : 'Microphone'
+}
+
+function resetAllHelperTcc(type: 'camera' | 'microphone'): number {
+  const service = tccService(type)
+  let reset = 0
+  for (const id of HELPER_BUNDLES) {
+    try {
+      execSync(`tccutil reset ${service} "${id}"`, { stdio: 'pipe' })
+      reset++
+    } catch { /* no entry — fine */ }
+  }
+  logLine(`tccutil reset ${service}: cleared entries for ${reset}/${HELPER_BUNDLES.length} helper bundles`)
+  return reset
+}
+
 // Request camera or microphone access, auto-resetting stale denied TCC entries.
 // macOS silently denies helpers when Electron binaries change between DMG builds —
 // the entry shows as "denied" but never appeared in System Settings. Detecting this
 // and resetting automatically means users never need terminal commands.
 async function grantMediaAccess(type: 'camera' | 'microphone'): Promise<void> {
-  const granted = await systemPreferences.askForMediaAccess(type).catch(() => false)
-  if (!granted && systemPreferences.getMediaAccessStatus(type) === 'denied') {
-    const service = type === 'camera' ? 'Camera' : 'Microphone'
-    for (const id of HELPER_BUNDLES) {
-      try { execSync(`tccutil reset ${service} "${id}"`, { stdio: 'pipe' }) } catch { /* ok */ }
-    }
-    await systemPreferences.askForMediaAccess(type).catch(() => {})
+  const before = systemPreferences.getMediaAccessStatus(type)
+  logLine(`grantMediaAccess(${type}): status before = ${before}`)
+  const granted = await systemPreferences.askForMediaAccess(type).catch(e => {
+    logLine(`grantMediaAccess(${type}): askForMediaAccess threw: ${e}`)
+    return false
+  })
+  const afterFirst = systemPreferences.getMediaAccessStatus(type)
+  logLine(`grantMediaAccess(${type}): first askForMediaAccess returned ${granted}, status now = ${afterFirst}`)
+
+  // If we did not get permission AND the status is anything other than 'granted',
+  // wipe the TCC entries for every helper and retry. We used to gate on === 'denied'
+  // only, but the silent-denial state surfaces as 'denied' OR 'restricted' OR even
+  // 'granted-but-unusable' depending on macOS quirks; clearing any non-granted state
+  // is the only reliable path to a fresh prompt.
+  if (!granted && afterFirst !== 'granted') {
+    resetAllHelperTcc(type)
+    const afterReset = systemPreferences.getMediaAccessStatus(type)
+    logLine(`grantMediaAccess(${type}): status after reset = ${afterReset}`)
+    const granted2 = await systemPreferences.askForMediaAccess(type).catch(e => {
+      logLine(`grantMediaAccess(${type}): retry askForMediaAccess threw: ${e}`)
+      return false
+    })
+    const afterRetry = systemPreferences.getMediaAccessStatus(type)
+    logLine(`grantMediaAccess(${type}): retry returned ${granted2}, status now = ${afterRetry}`)
   }
 }
 

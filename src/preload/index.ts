@@ -57,6 +57,12 @@ contextBridge.exposeInMainWorld('api', {
   resetRendererMicTCC: (): Promise<{ ok: boolean; reset?: number }> =>
     ipcRenderer.invoke('permissions:resetRendererMicTCC'),
 
+  resetAllAndRelaunch: (): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('permissions:resetAllAndRelaunch'),
+
+  openMainLog: (): Promise<string | null> =>
+    ipcRenderer.invoke('system:openMainLog'),
+
   getScreenRecordingStatus: (): Promise<string> =>
     ipcRenderer.invoke('permissions:getScreenRecordingStatus'),
 
