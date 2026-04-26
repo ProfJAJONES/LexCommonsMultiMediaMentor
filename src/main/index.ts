@@ -45,7 +45,12 @@ function resetAllHelperTcc(type: 'camera' | 'microphone'): number {
     try {
       execSync(`tccutil reset ${service} "${id}"`, { stdio: 'pipe' })
       reset++
-    } catch { /* no entry — fine */ }
+      logLine(`  ✓ tccutil reset ${service} "${id}"`)
+    } catch (e) {
+      const stderr = (e as { stderr?: Buffer }).stderr?.toString().trim() ?? '(no stderr)'
+      const stdout = (e as { stdout?: Buffer }).stdout?.toString().trim() ?? ''
+      logLine(`  ✗ tccutil reset ${service} "${id}" — stderr: ${stderr} stdout: ${stdout}`)
+    }
   }
   logLine(`tccutil reset ${service}: cleared entries for ${reset}/${HELPER_BUNDLES.length} helper bundles`)
   return reset

@@ -60,6 +60,9 @@ contextBridge.exposeInMainWorld('api', {
   resetAllAndRelaunch: (): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('permissions:resetAllAndRelaunch'),
 
+  aggressiveReset: (): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> =>
+    ipcRenderer.invoke('permissions:aggressiveReset'),
+
   openMainLog: (): Promise<string | null> =>
     ipcRenderer.invoke('system:openMainLog'),
 

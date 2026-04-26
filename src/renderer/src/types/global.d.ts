@@ -32,6 +32,7 @@ declare global {
       requestMediaAccess: () => Promise<{ camera: boolean; microphone: boolean }>
       resetRendererMicTCC: () => Promise<{ ok: boolean; reset?: number }>
       resetAllAndRelaunch: () => Promise<{ ok: boolean }>
+      aggressiveReset: () => Promise<{ ok: boolean; cancelled?: boolean; error?: string }>
       openMainLog: () => Promise<string | null>
       getScreenRecordingStatus: () => Promise<string>
       openScreenRecordingSettings: () => Promise<void>

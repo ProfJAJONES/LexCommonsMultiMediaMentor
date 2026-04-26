@@ -636,6 +636,42 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
     return { ok: true }
   })
 
+  // Aggressive recovery: reset using sudo via osascript's "with administrator
+  // privileges" — this prompts the user for their macOS password and runs
+  // tccutil with root, which clears entries in the SYSTEM-level TCC database
+  // that the regular per-user tccutil cannot touch. Use this when the regular
+  // reset reports success but status stays 'denied' anyway (macOS auto-deny
+  // before any dialog appears, status flips not-determined → denied in <100ms).
+  ipcMain.handle('permissions:aggressiveReset', async () => {
+    if (process.platform !== 'darwin') return { ok: true }
+    const bundleIds = [
+      'org.lexcommons.multimedia-mentor',
+      'org.lexcommons.multimedia-mentor.helper',
+      'org.lexcommons.multimedia-mentor.helper.Renderer',
+      'org.lexcommons.multimedia-mentor.helper.GPU',
+      'org.lexcommons.multimedia-mentor.helper.Plugin',
+    ]
+    // Build a single shell command that resets everything in one sudo prompt.
+    // `tccutil reset All <bundle>` clears ALL services (Mic, Camera, etc.) for
+    // that bundle — the broadest hammer short of `tccutil reset All` (no bundle).
+    const cmd = bundleIds.map(id => `tccutil reset All "${id}"`).join(' ; ') + ' ; true'
+    const escaped = cmd.replace(/"/g, '\\"')
+    const osa = `do shell script "${escaped}" with administrator privileges`
+    try {
+      execSync(`osascript -e '${osa.replace(/'/g, "'\\''")}'`, { stdio: 'pipe' })
+      app.relaunch()
+      app.exit(0)
+      return { ok: true }
+    } catch (e) {
+      const stderr = (e as { stderr?: Buffer }).stderr?.toString() ?? ''
+      // User cancelling the sudo prompt produces a -128 error; not a real failure.
+      if (stderr.includes('User canceled') || stderr.includes('-128')) {
+        return { ok: false, cancelled: true }
+      }
+      return { ok: false, error: stderr || (e instanceof Error ? e.message : String(e)) }
+    }
+  })
+
   // Reveal main.log so the user can paste it into a bug report.
   ipcMain.handle('system:openMainLog', async () => {
     const logPath = join(app.getPath('userData'), 'main.log')

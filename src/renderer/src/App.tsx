@@ -2064,7 +2064,7 @@ function PermissionStatus() {
           )}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
         <button
           style={btn}
           onClick={async () => {
@@ -2073,6 +2073,19 @@ function PermissionStatus() {
           }}
         >
           Reset Permissions
+        </button>
+        <button
+          style={{ ...btn, borderColor: '#fca5a5', color: '#b91c1c' }}
+          onClick={async () => {
+            if (!confirm('Aggressive reset uses sudo to clear macOS\'s system-level TCC database — required when the regular reset cannot fix a silent denial. You will be prompted for your Mac admin password, then the app will relaunch. Proceed?')) return
+            const r = await window.api.aggressiveReset()
+            if (!r.ok && !r.cancelled) {
+              alert(`Aggressive reset failed: ${r.error || 'unknown error'}`)
+            }
+          }}
+          title="Use this when 'Reset Permissions' did not change the mic/camera status"
+        >
+          Aggressive Reset (sudo)
         </button>
         <button
           style={btn}
