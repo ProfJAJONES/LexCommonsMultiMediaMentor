@@ -25,7 +25,15 @@ async function getPipeline() {
       const { pipeline, env } = await import('@huggingface/transformers')
       // Allow the model to be fetched from HuggingFace and cached locally
       env.allowLocalModels = false
-      return pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en')
+      // Pin dtype: the default q4 decoder fails ORT session creation with
+      // "Missing required scale: …weight_merged_0_scale" on this model build.
+      // fp32 encoder + q8 decoder is the well-tested combo for Xenova/whisper-tiny.en.
+      return pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+        dtype: {
+          encoder_model: 'fp32',
+          decoder_model_merged: 'q8'
+        }
+      })
     })()
   }
   return pipelinePromise
