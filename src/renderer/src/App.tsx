@@ -58,6 +58,10 @@ export default function App() {
 
   // Prevents concurrent media operations (import / webcam / device switch)
   const mediaLoadingRef = useRef(false)
+  // Tracks the deviceId of the currently-streaming webcam so the auto-restart
+  // effect can tell when the user actually picked a different camera vs. the
+  // post-open re-enumerate just refreshing the same id.
+  const activeCameraIdRef = useRef<string>('')
 
   // Audio source for analysis graphs
   const [audioSource, setAudioSource] = useState<AudioSource>('video')
@@ -135,6 +139,17 @@ export default function App() {
       video.srcObject = null
     }
   }, [webcamStream])
+
+  // Auto-restart the webcam stream when the user picks a different camera
+  // mid-session. Without this, the dropdown is silently inert until the user
+  // discovers the "click Webcam to apply" hint.
+  useEffect(() => {
+    if (mediaMode !== 'webcam') return
+    if (!selectedCameraId) return
+    if (selectedCameraId === activeCameraIdRef.current) return
+    handleWebcam()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCameraId, mediaMode])
 
   // Close audio picker when clicking outside
   useEffect(() => {
@@ -275,6 +290,7 @@ export default function App() {
     blackholeStream?.getTracks().forEach(t => t.stop())
     setMicStream(null)
     setBlackholeStream(null)
+    activeCameraIdRef.current = ''
     if (videoRef.current) videoRef.current.srcObject = null
   }
 
@@ -321,8 +337,12 @@ export default function App() {
     let audioStream: MediaStream | null = null
 
     // ── Video ──────────────────────────────────────────────────────────────────
+    // exact (not ideal) — `ideal` is a soft hint and the browser silently picks
+    // the built-in camera when it judges the requested one "good enough to skip".
+    // exact forces the requested device or throws OverconstrainedError; we then
+    // fall back to default so the call still succeeds.
     try {
-      const vc = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
+      const vc = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : true
       videoStream = await navigator.mediaDevices.getUserMedia({ video: vc, audio: false })
     } catch {
       try {
@@ -333,7 +353,7 @@ export default function App() {
     // ── Audio (separate call so its TCC prompt fires independently) ────────────
     let micError = ''
     try {
-      const ac = selectedMicId ? { deviceId: { ideal: selectedMicId } } : true
+      const ac = selectedMicId ? { deviceId: { exact: selectedMicId } } : true
       audioStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: ac })
     } catch (e1) {
       micError = e1 instanceof Error ? `${e1.name}: ${e1.message}` : String(e1)
@@ -364,7 +384,12 @@ export default function App() {
       const activeCam = combined.getVideoTracks()[0]
       if (activeCam) {
         const matchedCam = cams.find(c => c.label === activeCam.label)
-        if (matchedCam) setSelectedCameraId(matchedCam.deviceId)
+        if (matchedCam) {
+          // Set the ref BEFORE setSelectedCameraId so the auto-restart effect
+          // sees them as already-equal and does not bounce the stream.
+          activeCameraIdRef.current = matchedCam.deviceId
+          setSelectedCameraId(matchedCam.deviceId)
+        }
       }
       const activeMic = combined.getAudioTracks()[0]
       if (activeMic) {
@@ -1578,7 +1603,7 @@ ${ann.comments.length === 0
                     value={selectedCameraId}
                     onChange={e => { setSelectedCameraId(e.target.value) }}
                     style={devSelect}
-                    title="Change camera — click Webcam button to apply"
+                    title="Change camera — applied immediately"
                   >
                     {cameraDevices.map(d => (
                       <option key={d.deviceId} value={d.deviceId}>{d.label || 'Camera'}</option>

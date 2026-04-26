@@ -119,22 +119,46 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
     }
   }, [cameraStream])
 
-  // Camera management
+  // Open the camera with the currently-selected deviceId. exact (not ideal):
+  // otherwise macOS silently swaps in the built-in FaceTime camera even when
+  // the user picked an external webcam.
+  async function openCamera() {
+    try {
+      const vc = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : true
+      let stream: MediaStream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: vc, audio: false })
+      } catch {
+        // Selected device unavailable (unplugged?) — fall back to default.
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      }
+      setCameraError(null)
+      setCameraStream(stream)
+    } catch {
+      setCameraError('Camera access denied')
+    }
+  }
+
   async function toggleCamera() {
     if (cameraStream) {
       cameraStream.getTracks().forEach(t => t.stop())
       setCameraStream(null)
     } else {
-      try {
-        const vc = selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true
-        const stream = await navigator.mediaDevices.getUserMedia({ video: vc, audio: false })
-        setCameraError(null)
-        setCameraStream(stream)
-      } catch {
-        setCameraError('Camera access denied')
-      }
+      await openCamera()
     }
   }
+
+  // Auto-restart with the new camera when the user picks a different device
+  // mid-session — only when the camera is already on, so we never spin it up
+  // unbidden.
+  useEffect(() => {
+    if (!cameraStream || !selectedCameraId) return
+    const active = cameraStream.getVideoTracks()[0]?.getSettings().deviceId
+    if (active === selectedCameraId) return
+    cameraStream.getTracks().forEach(t => t.stop())
+    openCamera()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCameraId])
 
   // Stop camera on unmount or session end
   useEffect(() => {
