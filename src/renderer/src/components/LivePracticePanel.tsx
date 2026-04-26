@@ -3,7 +3,7 @@ import type { Domain } from '../hooks/useDomain'
 import { DOMAIN_CONFIG } from '../hooks/useDomain'
 import { PRACTICE_CHARACTERS, type PracticeCharacter } from '../config/practiceCharacters'
 import { useLivePractice } from '../hooks/useLivePractice'
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import { useWhisperTranscription } from '../hooks/useWhisperTranscription'
 import { useAIKnowledgeBase } from '../hooks/useAIKnowledgeBase'
 import { streamCompletion, type AIProvider } from '../utils/aiClient'
 
@@ -41,7 +41,7 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
 
   // Conversation
   const practice = useLivePractice(apiKey, provider)
-  const speech = useSpeechRecognition()
+  const speech = useWhisperTranscription()
   const kb = useAIKnowledgeBase(domain)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -64,6 +64,10 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
   useEffect(() => { kbRef.current = kb }, [kb])
   useEffect(() => { practiceRef.current = practice })
   useEffect(() => { benchTempRef.current = benchTemp }, [benchTemp])
+
+  // Warm up the Whisper model when the Practice tab opens so the first
+  // tap-to-speak doesn't pay the ~40MB download + load latency.
+  useEffect(() => { speech.preload() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to bottom on new messages
   useEffect(() => {
