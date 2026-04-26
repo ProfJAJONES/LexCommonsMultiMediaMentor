@@ -68,6 +68,18 @@ function createWindow(): void {
     callback(allowed.includes(permission))
   })
 
+  // Chromium uses the *check* handler (not the request handler) to decide whether
+  // navigator.mediaDevices.enumerateDevices() may expose stable deviceIds and
+  // labels. file:// origins (production renderer) are treated as ephemeral and
+  // get blank deviceIds without this — which makes
+  // getUserMedia({ deviceId: { exact: id } }) impossible for the user-picked
+  // camera and silently falls back to the built-in. Dev mode (localhost) has
+  // persistent permission storage and works without it.
+  win.webContents.session.setPermissionCheckHandler((_webContents, permission) => {
+    const allowed = ['media', 'microphone', 'camera', 'audioCapture', 'videoCapture']
+    return allowed.includes(permission)
+  })
+
   // Electron 30+ requires setDisplayMediaRequestHandler to be registered or
   // getDisplayMedia() is silently rejected in the renderer.
   // useSystemPicker: true shows the native macOS screen picker. After the user
