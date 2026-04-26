@@ -95,11 +95,15 @@ export default function App() {
       const mics = devs.filter(d => d.kind === 'audioinput')
       const cams = devs.filter(d => d.kind === 'videoinput')
       const outs = devs.filter(d => d.kind === 'audiooutput')
+      console.log('[devices] cams:', cams.map(c => ({ label: c.label || '(blank)', deviceId: c.deviceId || '(blank)' })))
       setMicDevices(mics)
       setCameraDevices(cams)
       setOutputDevices(outs)
       if (mics.length > 0 && !selectedMicId) setSelectedMicId(mics[0].deviceId)
-      if (cams.length > 0 && !selectedCameraId) setSelectedCameraId(cams[0].deviceId)
+      // Only auto-select a camera if its deviceId is real — otherwise we lock
+      // selectedCameraId to '' which makes exact-deviceId open the default
+      // camera, hiding the user's actual selection bug.
+      if (cams.length > 0 && !selectedCameraId && cams[0].deviceId) setSelectedCameraId(cams[0].deviceId)
       if (outs.length > 0 && !selectedOutputId) setSelectedOutputId(outs[0].deviceId)
     }).catch(() => {})
   }
@@ -341,13 +345,24 @@ export default function App() {
     // the built-in camera when it judges the requested one "good enough to skip".
     // exact forces the requested device or throws OverconstrainedError; we then
     // fall back to default so the call still succeeds.
+    console.log('[webcam] requested deviceId:', selectedCameraId || '(default)')
+    let usedFallback = false
     try {
       const vc = selectedCameraId ? { deviceId: { exact: selectedCameraId } } : true
       videoStream = await navigator.mediaDevices.getUserMedia({ video: vc, audio: false })
-    } catch {
+    } catch (e) {
+      console.warn('[webcam] exact deviceId failed, falling back to default:', e)
+      usedFallback = true
       try {
         videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-      } catch { /* handled below */ }
+      } catch (e2) {
+        console.error('[webcam] default getUserMedia also failed:', e2)
+      }
+    }
+    if (videoStream) {
+      const t = videoStream.getVideoTracks()[0]
+      const settings = t?.getSettings()
+      console.log('[webcam] opened track:', { label: t?.label, deviceId: settings?.deviceId, fallback: usedFallback })
     }
 
     // ── Audio (separate call so its TCC prompt fires independently) ────────────
