@@ -23,7 +23,7 @@ const CONFIDENCE_THRESHOLD = 0.3
 
 interface Props {
   /** The video element to analyse — the uploaded video player */
-  sourceVideoRef: React.RefObject<HTMLVideoElement>
+  sourceVideoRef: React.RefObject<HTMLVideoElement | null>
   width?: number
   height?: number
   apiKey?: string

@@ -1,11 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
 
-declare global {
-  interface Window {
-    webkitSpeechRecognition?: typeof SpeechRecognition
-  }
-}
-
 export function useSpeechRecognition() {
   const [isListening, setIsListening] = useState(false)
   const [liveTranscript, setLiveTranscript] = useState('')

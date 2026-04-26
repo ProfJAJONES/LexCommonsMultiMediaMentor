@@ -490,7 +490,7 @@ ${rows}
             ))}
             {practice.streamingText && (
               <PracticeMessageBubble
-                message={{ id: 'streaming', speaker: 'character', text: practice.streamingText, timestamp: Date.now() }}
+                message={{ id: 'streaming', speaker: 'character', text: practice.streamingText }}
                 character={character}
                 isFirst={false}
                 streaming

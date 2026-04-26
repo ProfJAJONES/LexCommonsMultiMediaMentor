@@ -542,7 +542,7 @@ function CommentCard({
   onSeek?: (t: number) => void
 }) {
   return (
-    <div style={{ background: '#ffffff', borderRadius: 8, padding: '10px 12px', borderLeft: `3px solid ${TAG_COLORS[c.tag]}`, border: `1px solid #bae6fd`, borderLeft: `3px solid ${TAG_COLORS[c.tag]}` }}>
+    <div style={{ background: '#ffffff', borderRadius: 8, padding: '10px 12px', border: '1px solid #bae6fd', borderLeft: `3px solid ${TAG_COLORS[c.tag]}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <button

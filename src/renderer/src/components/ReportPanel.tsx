@@ -1010,7 +1010,7 @@ interface NarrativeEditorProps {
   html: string
   isGenerating: boolean
   editingNarrative: boolean
-  editorRef: React.RefObject<HTMLDivElement>
+  editorRef: React.RefObject<HTMLDivElement | null>
   onEnterEdit: () => void
   onDoneEdit: () => void
 }

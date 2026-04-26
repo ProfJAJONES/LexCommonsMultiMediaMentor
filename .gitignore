@@ -4,6 +4,7 @@ out/
 .DS_Store
 *.dmg
 *.blockmap
+*.tsbuildinfo
 
 # Certificates and secrets — never commit
 *.p12

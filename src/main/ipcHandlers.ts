@@ -90,7 +90,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
     // Convert buffer to Node Buffer — check it's non-empty
     let rawBuf: Buffer
     try {
-      rawBuf = Buffer.from(buffer)
+      rawBuf = buffer instanceof ArrayBuffer ? Buffer.from(new Uint8Array(buffer)) : Buffer.from(buffer)
     } catch (e) {
       dialog.showErrorBox('Save failed', `Could not read recording data: ${e}`)
       return null
@@ -145,7 +145,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
             cmd = cmd.videoCodec('libx264').audioCodec('aac')
         }
 
-        cmd.save(chosenPath).on('end', resolve).on('error', reject)
+        cmd.save(chosenPath).on('end', () => resolve()).on('error', reject)
       })
 
       // Conversion succeeded — remove the intermediate WebM

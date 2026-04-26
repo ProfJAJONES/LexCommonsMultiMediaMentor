@@ -11,7 +11,7 @@
     "resolveJsonModule": true,
     "jsx": "react-jsx",
     "paths": {
-      "@renderer/*": ["src/renderer/src/*"]
+      "@renderer/*": ["./src/renderer/src/*"]
     }
   },
   "include": ["src/renderer/src/**/*"]

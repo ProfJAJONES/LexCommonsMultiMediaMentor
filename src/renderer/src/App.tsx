@@ -26,36 +26,6 @@ import { PROVIDER_CONFIG } from './utils/aiClient'
 import type { AIProvider } from './utils/aiClient'
 import type { Domain } from './hooks/useDomain'
 import type { Annotation } from './types'
-import type { CaptureSource } from './hooks/useScreenRecorder'
-
-declare global {
-  interface Window {
-    api: {
-      openMedia: () => Promise<{ filePath: string; fileName: string } | null>
-      saveFeedback: (data: string) => Promise<boolean>
-      saveNotesAs: (data: string, format: 'json' | 'csv' | 'md' | 'txt') => Promise<string | null>
-      saveNotesAsPDF: (html: string, name: string) => Promise<string | null>
-      saveNotesAsDocx: (payload: object, name: string) => Promise<string | null>
-      loadFeedback: () => Promise<Record<string, unknown> | null>
-      openPath: (p: string) => Promise<void>
-      getCaptureSources: () => Promise<CaptureSource[]>
-      saveRecording: (buffer: Uint8Array, name: string) => Promise<string | { fallback: true; webmPath: string } | null>
-      exportAnnotatedVideo: (videoPath: string, pitchPng: string, decibelPng: string, comments: Array<{ timestamp: number; tag: string; text: string }>) => Promise<string | { error: string } | null>
-      saveReport: (html: string) => Promise<string | null>
-      installBlackHole: () => Promise<string | null>
-      openAudioMidiSetup: () => Promise<string | null>
-      getMediaPermissions: () => Promise<{ camera: string; microphone: string }>
-      requestMediaAccess: () => Promise<{ camera: boolean; microphone: boolean }>
-      resetRendererMicTCC: () => Promise<{ ok: boolean; reset?: number }>
-      getScreenRecordingStatus: () => Promise<string>
-      openScreenRecordingSettings: () => Promise<void>
-      storeGet: (key: string) => Promise<string | null>
-      storeGetAll: () => Promise<Record<string, string>>
-      storeSet: (key: string, value: string | null) => Promise<void>
-      minimizeWindow: () => void
-    }
-  }
-}
 
 type AnnotationTool = Annotation['type'] | null
 const COLORS = ['#f87171', '#fbbf24', '#34d399', '#38bdf8', '#a78bfa', '#f472b6']

@@ -75,16 +75,15 @@ function createWindow(): void {
   // selected DesktopCapturerSource — we must pass it through the callback or
   // the request is denied (callback({}) = deny).
   win.webContents.session.setDisplayMediaRequestHandler(async (request, callback) => {
-    console.log('[displayMedia] request.video:', request.video, '| type:', typeof request.video)
-    if (request.video && typeof request.video === 'object') {
-      console.log('[displayMedia] passing through source id:', (request.video as { id?: string }).id)
-      callback({ video: request.video, audio: request.audio })
+    // Electron 30+ adds request.video/audio after the system picker resolves, but
+    // the .d.ts hasn't caught up — cast to read those fields without ts errors.
+    const r = request as unknown as { video?: unknown; audio?: unknown }
+    if (r.video && typeof r.video === 'object') {
+      callback({ video: r.video as Electron.DesktopCapturerSource, audio: r.audio as 'loopback' | 'loopbackWithMute' | undefined })
       return
     }
     // request.video is null/undefined or boolean true — fall back to desktopCapturer screen source
-    console.log('[displayMedia] falling back to desktopCapturer screen source')
     const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })
-    console.log('[displayMedia] screen sources found:', sources.map(s => s.name))
     callback(sources[0] ? { video: sources[0] } : {})
   }, { useSystemPicker: true })
 

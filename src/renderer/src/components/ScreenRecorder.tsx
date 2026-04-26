@@ -1,10 +1,6 @@
 import React, { useState } from 'react'
 import type { CaptureSource, RecorderState } from '../hooks/useScreenRecorder'
 
-declare global {
-  interface Window { api: { minimizeWindow: () => void } & Record<string, unknown> }
-}
-
 interface PickerProps {
   sources: CaptureSource[]
   onSelect: (id: string, withMic: boolean) => void
