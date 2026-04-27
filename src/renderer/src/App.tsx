@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react'
-import logoUrl from './assets/logo-sidebar.svg'
+import logoUrl from './assets/logo-sidebar.png'
 import { VideoPlayer } from './components/VideoPlayer'
 import { PitchGraph } from './components/PitchGraph'
 import type { PitchGraphHandle } from './components/PitchGraph'

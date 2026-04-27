@@ -87,7 +87,9 @@ async function speakElevenLabs(opts: SpeakOptions): Promise<void> {
 
   if (!response.ok) {
     const err = await response.text().catch(() => '')
-    throw new Error(`ElevenLabs ${response.status}: ${err.slice(0, 200) || response.statusText}`)
+    // Log full payload to console for debugging — toast may be truncated.
+    console.error('[ElevenLabs] HTTP', response.status, 'body:', err, 'voiceId:', voiceId, 'model:', 'eleven_multilingual_v2')
+    throw new Error(`ElevenLabs ${response.status}: ${err.slice(0, 400) || response.statusText}`)
   }
 
   const blob = await response.blob()
