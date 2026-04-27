@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld('api', {
   saveRecording: (buffer: Uint8Array, name: string): Promise<string | { fallback: true; webmPath: string } | null> =>
     ipcRenderer.invoke('desktop:saveRecording', buffer, name),
 
+  saveProjectPackage: (webmBuffer: Uint8Array | null, sessionJson: string, slug: string): Promise<string | null> =>
+    ipcRenderer.invoke('desktop:saveProjectPackage', webmBuffer, sessionJson, slug),
+
   saveReport: (html: string): Promise<string | null> =>
     ipcRenderer.invoke('desktop:saveReport', html),
 

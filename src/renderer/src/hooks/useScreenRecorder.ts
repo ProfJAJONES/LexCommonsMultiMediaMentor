@@ -175,6 +175,41 @@ export function useScreenRecorder() {
     setRecorderState('recording')
   }, [])
 
+  // Stop recording and return raw bytes — used when the caller wants to bundle
+  // the webm into its own package rather than show a separate save dialog.
+  const stopAndGetBlob = useCallback(async (): Promise<{ uint8: Uint8Array; name: string } | null> => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+    const recorder = mediaRecorderRef.current
+    if (!recorder || recorder.state === 'inactive') return null
+
+    setRecorderState('saving')
+    if (recorder.state === 'paused') recorder.resume()
+
+    await new Promise<void>(resolve => {
+      recorder.onstop = () => resolve()
+      recorder.stop()
+    })
+
+    displayStreamRef.current?.getTracks().forEach(t => t.stop())
+    micStreamRef.current?.getTracks().forEach(t => t.stop())
+    displayStreamRef.current = null
+    micStreamRef.current = null
+    borrowedAudioRef.current = false
+
+    const blob = new Blob(chunksRef.current, { type: 'video/webm' })
+    const uint8 = new Uint8Array(await blob.arrayBuffer())
+    const name = `recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`
+
+    chunksRef.current = []
+    mediaRecorderRef.current = null
+    setRecorderState('idle')
+    setElapsedSec(0)
+    setHasAudio(false)
+
+    if (uint8.byteLength === 0) return null
+    return { uint8, name }
+  }, [])
+
   const stopRecording = useCallback(async () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
 
@@ -236,6 +271,7 @@ export function useScreenRecorder() {
     startRecording,
     pauseRecording,
     resumeRecording,
-    stopRecording
+    stopRecording,
+    stopAndGetBlob
   }
 }

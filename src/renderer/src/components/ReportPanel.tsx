@@ -1016,6 +1016,15 @@ interface NarrativeEditorProps {
 }
 
 function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEnterEdit, onDoneEdit }: NarrativeEditorProps) {
+  // When entering edit mode, React removes dangerouslySetInnerHTML and clears the element.
+  // Repopulate manually so the user sees their content in the editable div.
+  useEffect(() => {
+    if (editingNarrative && editorRef.current) {
+      editorRef.current.innerHTML = html
+      editorRef.current.focus()
+    }
+  }, [editingNarrative])
+
   // Prevent toolbar button clicks from stealing focus from the editor
   function tb(cmd: string, value?: string) {
     return (e: React.MouseEvent) => {

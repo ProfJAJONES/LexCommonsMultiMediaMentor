@@ -1,6 +1,6 @@
 import { IpcMain, Dialog, shell, desktopCapturer, app, BrowserWindow, systemPreferences } from 'electron'
 import { execSync } from 'child_process'
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync, rmSync } from 'fs'
 import { join, basename, extname, resolve, normalize } from 'path'
 import { homedir } from 'os'
 import { tmpdir } from 'os'
@@ -286,6 +286,42 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
     } finally {
       win.destroy()
       try { unlinkSync(tmpHtml) } catch { /* ignore */ }
+    }
+  })
+
+  // Bundle a screen recording + session JSON into a single zip archive.
+  // The caller stops the recording first (via stopAndGetBlob) and passes the
+  // raw webm bytes here so we never show two separate save dialogs.
+  ipcMain.handle('desktop:saveProjectPackage', async (
+    _event,
+    webmBuffer: Uint8Array | null,
+    sessionJson: string,
+    slug: string
+  ) => {
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const safeName = (slug || 'session').replace(/[^a-z0-9_-]/gi, '-').slice(0, 40)
+    const defaultName = `${safeName}-${dateStr}-package.zip`
+
+    const result = await dialog.showSaveDialog({
+      title: 'Save Project Package',
+      defaultPath: join(homedir(), 'Desktop', defaultName),
+      filters: [{ name: 'ZIP Archive', extensions: ['zip'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+
+    const zipPath = result.filePath.endsWith('.zip') ? result.filePath : result.filePath + '.zip'
+    const tmpDir = join(tmpdir(), `mm-package-${Date.now()}`)
+
+    try {
+      mkdirSync(tmpDir, { recursive: true })
+      writeFileSync(join(tmpDir, `session-${dateStr}.json`), sessionJson, 'utf-8')
+      if (webmBuffer && webmBuffer.byteLength > 0) {
+        writeFileSync(join(tmpDir, `recording-${dateStr}.webm`), Buffer.from(webmBuffer))
+      }
+      execSync(`cd "${tmpDir}" && zip -r "${zipPath}" .`, { stdio: 'ignore' })
+      return zipPath
+    } finally {
+      try { rmSync(tmpDir, { recursive: true, force: true }) } catch { /* ignore */ }
     }
   })
 

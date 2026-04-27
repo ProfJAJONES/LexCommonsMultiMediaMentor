@@ -308,6 +308,26 @@ export default function App() {
     }
   }
 
+  // Sidebar "Close Project" — stops any active screen recording and packages
+  // the recording + session JSON into a single zip before clearing state.
+  async function handleCloseProject() {
+    const isRecording = screen.recorderState === 'recording' || screen.recorderState === 'paused'
+    if (isRecording) {
+      const recording = await screen.stopAndGetBlob()
+      const slug = (fileName || 'session').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')
+      const saveProjectPackage = (window.api as unknown as {
+        saveProjectPackage?: (webm: Uint8Array | null, json: string, slug: string) => Promise<string | null>
+      }).saveProjectPackage
+      if (saveProjectPackage) {
+        await saveProjectPackage(recording?.uint8 ?? null, buildExportJSON(), slug)
+      }
+      doClear()
+      return
+    }
+    // No active recording — fall through to the normal confirm dialog
+    handleCloseSession()
+  }
+
   function doClear() {
     setShowCloseConfirm(false)
     stopWebcam()
@@ -904,11 +924,17 @@ ${ann.comments.length === 0
         {fileName && (
           <div style={{ padding: '6px 10px', borderBottom: '1px solid #bae6fd', background: '#fff7ed' }}>
             <button
-              onClick={handleCloseSession}
-              title="Close the current project and start fresh"
+              onClick={handleCloseProject}
+              title={
+                screen.recorderState === 'recording' || screen.recorderState === 'paused'
+                  ? 'Stop recording and save everything as a zip package'
+                  : 'Close the current project and start fresh'
+              }
               style={{ ...btnStyle('#dc2626'), width: '100%', fontSize: 11 }}
             >
-              ✕ Close Project
+              {screen.recorderState === 'recording' || screen.recorderState === 'paused'
+                ? '■ Stop & Package Project'
+                : '✕ Close Project'}
             </button>
           </div>
         )}
