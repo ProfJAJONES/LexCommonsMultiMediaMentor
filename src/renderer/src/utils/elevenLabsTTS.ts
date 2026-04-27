@@ -2,8 +2,9 @@
  * elevenLabsTTS
  *
  * Speak text via ElevenLabs API, fall back to browser SpeechSynthesis on any
- * failure (missing key, network error, quota exceeded, etc.). Uses the Flash
- * v2.5 model for low first-byte latency (~500ms on short text).
+ * failure (missing key, network error, quota exceeded, etc.). Uses the
+ * multilingual v2 model — broadly compatible across free and paid accounts.
+ * Higher-tier paid plans can switch to eleven_flash_v2_5 for ~500ms first byte.
  *
  * Maintains module-level singletons so a new utterance cancels the previous
  * one — same semantics as window.speechSynthesis.cancel() + speak().
@@ -65,7 +66,10 @@ async function speakElevenLabs(opts: SpeakOptions): Promise<void> {
   const controller = new AbortController()
   currentAbort = controller
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?optimize_streaming_latency=2&output_format=mp3_44100_128`
+  // Plain endpoint + default model = compatible with free-tier accounts.
+  // optimize_streaming_latency and the flash/turbo v2.5 models are paid-only on
+  // many plans and return HTTP 402.
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -75,7 +79,7 @@ async function speakElevenLabs(opts: SpeakOptions): Promise<void> {
     },
     body: JSON.stringify({
       text,
-      model_id: 'eleven_flash_v2_5',
+      model_id: 'eleven_multilingual_v2',
       voice_settings: { stability, similarity_boost: similarityBoost }
     }),
     signal: controller.signal
