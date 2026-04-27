@@ -437,7 +437,7 @@ export default function App() {
       const errMsg = e instanceof Error ? e.message : String(e)
       const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
       if (perms.camera === 'denied') {
-        setWebcamError(`Camera blocked (${errName}). In System Settings → Privacy & Security → Camera, enable "LexCommons Multimedia Mentor", then restart the app.`)
+        setWebcamError(`Camera blocked (${errName}). In System Settings → Privacy & Security → Camera, enable "Multimedia Mentor by LexCommons", then restart the app.`)
       } else if (perms.camera === 'not-determined') {
         setWebcamError(`Camera access needed (${errName}). If you see a permission banner, click Allow, then click Webcam again.`)
       } else {
@@ -807,7 +807,7 @@ ${ann.comments.length === 0
         <div style={styles.sidebarHeader}>
           <img
             src={logoUrl}
-            alt="LexCommons Multimedia Mentor"
+            alt="Multimedia Mentor by LexCommons"
             style={{ width: '100%', height: 'auto', objectFit: 'contain', objectPosition: 'left center' }}
           />
         </div>
@@ -1240,7 +1240,7 @@ ${ann.comments.length === 0
           )}
           {webcamError === 'mic-settings-opened' && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ color: '#b45309', fontSize: 11 }}>Enable "LexCommons Multimedia Mentor" in the System Settings window that just opened, then click</span>
+              <span style={{ color: '#b45309', fontSize: 11 }}>Enable "Multimedia Mentor by LexCommons" in the System Settings window that just opened, then click</span>
               <button
                 onClick={() => { setWebcamError(null); handleWebcam() }}
                 style={{ fontSize: 11, padding: '2px 8px', background: '#059669', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
@@ -1411,7 +1411,7 @@ ${ann.comments.length === 0
                   </div>
                   <ol style={{ color: '#7f1d1d', margin: '0 0 6px 16px', padding: 0, lineHeight: 1.6 }}>
                     <li>Click <strong>Open Settings</strong> below</li>
-                    <li>Find <strong>LexCommons Multimedia Mentor</strong> and enable the toggle</li>
+                    <li>Find <strong>Multimedia Mentor by LexCommons</strong> and enable the toggle</li>
                     <li>Restart this app, then try recording again</li>
                   </ol>
                 </>
@@ -1445,7 +1445,7 @@ ${ann.comments.length === 0
                   </div>
                   <ol style={{ color: '#7f1d1d', margin: '0 0 6px 16px', padding: 0, lineHeight: 1.6 }}>
                     <li>Click <strong>Open Settings</strong> below</li>
-                    <li>Find <strong>LexCommons Multimedia Mentor</strong> and enable the toggle</li>
+                    <li>Find <strong>Multimedia Mentor by LexCommons</strong> and enable the toggle</li>
                     <li>Restart this app, then try recording again</li>
                   </ol>
                   <button
@@ -1772,16 +1772,16 @@ ${ann.comments.length === 0
 const ALL_DOMAINS: Domain[] = ['law', 'theater', 'music', 'public_speaking', 'debate', 'teaching']
 
 function DomainBar({ domain, onSelect }: { domain: Domain; onSelect: (d: Domain) => void }) {
-  const cfg = DOMAIN_CONFIG[domain]
+  // cfg available if needed for the active domain accent.
+  const _activeCfg = DOMAIN_CONFIG[domain]; void _activeCfg
   return (
     <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 2,
-      padding: '6px 10px',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: 6,
+      padding: '8px 10px',
       borderBottom: '1px solid #bae6fd',
-      background: '#e0f2fe',
-      overflowX: 'auto'
+      background: '#e0f2fe'
     }}>
       {ALL_DOMAINS.map(d => {
         const c = DOMAIN_CONFIG[d]
@@ -1793,24 +1793,21 @@ function DomainBar({ domain, onSelect }: { domain: Domain; onSelect: (d: Domain)
             title={c.label}
             style={{
               background: active ? c.color + '22' : 'transparent',
-              border: `1px solid ${active ? c.color + '88' : 'transparent'}`,
-              borderRadius: 6,
+              border: `1px solid ${active ? c.color + '88' : '#bae6fd'}`,
+              borderRadius: 8,
               color: active ? c.color : '#64748b',
               cursor: 'pointer',
-              fontSize: 11,
-              fontWeight: active ? 700 : 400,
-              padding: '4px 7px',
-              whiteSpace: 'nowrap',
+              fontWeight: active ? 700 : 500,
+              padding: '10px 4px 8px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 1,
-              minWidth: 42,
+              gap: 4,
               lineHeight: 1.2
             }}
           >
-            <span style={{ fontSize: 15 }}>{c.icon}</span>
-            <span style={{ fontSize: 9 }}>{c.label.split(' ')[0]}</span>
+            <span style={{ fontSize: 32, lineHeight: 1 }}>{c.icon}</span>
+            <span style={{ fontSize: 11, textAlign: 'center' }}>{c.label}</span>
           </button>
         )
       })}

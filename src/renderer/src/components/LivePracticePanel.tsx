@@ -457,32 +457,36 @@ ${rows}
           <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
             Choose your audience
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {characters.map(c => (
-              <button
-                key={c.id}
-                onClick={() => setCharacter(c)}
-                style={{
-                  background: character.id === c.id ? '#eff6ff' : '#fff',
-                  border: `1.5px solid ${character.id === c.id ? '#3b82f6' : '#e2e8f0'}`,
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  padding: '8px 10px',
-                  textAlign: 'left'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <span style={{ fontSize: 18, lineHeight: 1 }}>{c.icon}</span>
-                  <div>
-                    <div style={{ color: '#0f172a', fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</div>
-                    <div style={{ color: '#64748b', fontSize: 10, marginTop: 1 }}>{c.description}</div>
-                  </div>
-                  {character.id === c.id && (
-                    <span style={{ marginLeft: 'auto', color: '#3b82f6', fontSize: 14 }}>✓</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {characters.map(c => {
+              const active = character.id === c.id
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setCharacter(c)}
+                  style={{
+                    background: active ? '#eff6ff' : '#fff',
+                    border: `1.5px solid ${active ? '#3b82f6' : '#e2e8f0'}`,
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    padding: '14px 12px 12px',
+                    textAlign: 'center',
+                    position: 'relative',
+                    width: '100%'
+                  }}
+                >
+                  {active && (
+                    <span style={{
+                      position: 'absolute', top: 6, right: 8,
+                      color: '#3b82f6', fontSize: 16, lineHeight: 1
+                    }}>✓</span>
                   )}
-                </div>
-              </button>
-            ))}
+                  <div style={{ fontSize: 96, lineHeight: 1, marginBottom: 8 }}>{c.icon}</div>
+                  <div style={{ color: '#0f172a', fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</div>
+                  <div style={{ color: '#64748b', fontSize: 10, marginTop: 3, lineHeight: 1.35 }}>{c.description}</div>
+                </button>
+              )
+            })}
           </div>
 
           {/* Bench temperature selector — appellate panel and SCOTUS only */}

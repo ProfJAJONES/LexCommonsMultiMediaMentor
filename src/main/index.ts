@@ -94,7 +94,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 1100,
     minHeight: 700,
-    title: 'LexCommons Multimedia Mentor',
+    title: 'Multimedia Mentor by LexCommons',
     backgroundColor: '#0f172a',
     titleBarStyle: 'hiddenInset',
     webPreferences: {

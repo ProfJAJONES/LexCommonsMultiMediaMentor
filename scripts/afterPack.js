@@ -38,8 +38,8 @@ exports.default = async function afterPack(context) {
     `${productName} Helper (Plugin).app`,
   ]
   const keysToInject = [
-    ['NSCameraUsageDescription', 'LexCommons Multimedia Mentor uses your camera for webcam practice sessions.'],
-    ['NSMicrophoneUsageDescription', 'LexCommons Multimedia Mentor uses your microphone for real-time pitch and volume analysis.'],
+    ['NSCameraUsageDescription', 'Multimedia Mentor by LexCommons uses your camera for webcam practice sessions.'],
+    ['NSMicrophoneUsageDescription', 'Multimedia Mentor by LexCommons uses your microphone for real-time pitch and volume analysis.'],
   ]
   for (const helperName of helperNames) {
     const helperPlist = path.join(appPath, 'Contents/Frameworks', helperName, 'Contents/Info.plist')
