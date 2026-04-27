@@ -6,29 +6,22 @@ import { useLivePractice } from '../hooks/useLivePractice'
 import { useWhisperTranscription } from '../hooks/useWhisperTranscription'
 import { useAIKnowledgeBase } from '../hooks/useAIKnowledgeBase'
 import { streamCompletion, type AIProvider } from '../utils/aiClient'
+import { speak as speakTTS, cancelSpeech } from '../utils/elevenLabsTTS'
+import { voiceForCharacter } from '../config/elevenLabsVoices'
 
 interface Props {
   apiKey: string
   provider: AIProvider
   domain: Domain
   selectedCameraId?: string
+  /** ElevenLabs API key for voice synthesis. When empty, falls back to browser TTS. */
+  elevenLabsKey?: string
   onSessionData?: (messages: Array<{ speaker: string; text: string; timestamp: number }>) => void
-}
-
-// ─── TTS helper ───────────────────────────────────────────────────────────────
-
-function speak(text: string) {
-  if (!window.speechSynthesis) return
-  window.speechSynthesis.cancel()
-  const utterance = new SpeechSynthesisUtterance(text)
-  utterance.rate = 1.05
-  utterance.pitch = 1.0
-  window.speechSynthesis.speak(utterance)
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, onSessionData }: Props) {
+export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, elevenLabsKey, onSessionData }: Props) {
   const characters = PRACTICE_CHARACTERS[domain]
   const [character, setCharacter] = useState<PracticeCharacter>(characters[0])
   const [ttsEnabled, setTtsEnabled] = useState(false)
@@ -38,6 +31,12 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
   const videoRef = useRef<HTMLVideoElement>(null)
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  // User-resizable camera preview height. Persisted across sessions.
+  const cameraBoxRef = useRef<HTMLDivElement>(null)
+  const [cameraHeight, setCameraHeight] = useState<number>(() => {
+    const saved = Number(localStorage.getItem('mm_practice_camera_height'))
+    return Number.isFinite(saved) && saved >= 80 ? saved : 120
+  })
 
   // Conversation
   const practice = useLivePractice(apiKey, provider)
@@ -74,6 +73,39 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [practice.messages, practice.streamingText])
 
+  // Persist user-chosen camera box height. ResizeObserver fires on every
+  // resize-handle drag — debounce-via-rAF and write the final height to
+  // localStorage so the choice survives across sessions.
+  useEffect(() => {
+    const el = cameraBoxRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      const h = Math.round(entries[0]?.contentRect.height ?? 0)
+      if (h >= 80) {
+        setCameraHeight(h)
+        localStorage.setItem('mm_practice_camera_height', String(h))
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [practice.sessionActive])
+
+  // Eagerly sync session messages to the parent so export captures everything,
+  // even if the user exports without clicking End or hits End mid-stream.
+  // Includes any in-flight streamingText as a synthetic last message so a
+  // snapshot taken during streaming still has the latest content.
+  useEffect(() => {
+    if (practice.messages.length === 0) return
+    const exportable = practice.streamingText
+      ? [...practice.messages, {
+          speaker: 'character',
+          text: practice.streamingText,
+          timestamp: Date.now()
+        }]
+      : practice.messages
+    onSessionData?.(exportable)
+  }, [practice.messages, practice.streamingText]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Sync speech live transcript into input while listening
   useEffect(() => {
     if (speech.isListening) setInput(speech.liveTranscript)
@@ -90,7 +122,7 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
       if (text && !practiceRef.current.isResponding) {
         setInput('')
         const eff = applyBenchTemp(characterRef.current, benchTempRef.current)
-        practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock())
+        practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock(characterRef.current.id))
       }
     }
   }, [speech.isListening]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -101,16 +133,29 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
     kb.loadDomain(domain)
   }, [domain]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // TTS: speak each completed character response
+  // TTS: speak each completed character response. Uses ElevenLabs when a key
+  // is configured, otherwise falls back to browser SpeechSynthesis. Voice is
+  // selected per-character so different judges sound distinct.
   const prevMsgCount = useRef(0)
+  const [ttsFallbackReason, setTtsFallbackReason] = useState<string | null>(null)
   useEffect(() => {
     if (!ttsEnabled) return
     if (practice.messages.length > prevMsgCount.current) {
       const latest = practice.messages[practice.messages.length - 1]
-      if (latest.speaker === 'character') speak(latest.text)
+      if (latest.speaker === 'character') {
+        speakTTS({
+          text: latest.text,
+          voiceId: voiceForCharacter(character.id),
+          apiKey: elevenLabsKey ?? ''
+        }).then(result => {
+          // If we silently fell back to browser TTS, surface the reason once.
+          if (result.fallbackReason) setTtsFallbackReason(result.fallbackReason)
+          else if (result.engine === 'elevenlabs') setTtsFallbackReason(null)
+        }).catch(() => { /* cancellation, ignore */ })
+      }
     }
     prevMsgCount.current = practice.messages.length
-  }, [practice.messages, ttsEnabled])
+  }, [practice.messages, ttsEnabled, elevenLabsKey, character.id])
 
   // Wire stream to video element after React re-renders the <video> into the DOM
   useEffect(() => {
@@ -184,7 +229,7 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
   useEffect(() => {
     return () => {
       cameraStream?.getTracks().forEach(t => t.stop())
-      window.speechSynthesis?.cancel()
+      cancelSpeech()
     }
   }, [cameraStream])
 
@@ -333,7 +378,7 @@ ${rows}
     if (practice.messages.length > 0) onSessionData?.(practice.messages)
     practice.endSession()
     speech.abort()
-    window.speechSynthesis?.cancel()
+    cancelSpeech()
     cameraStream?.getTracks().forEach(t => t.stop())
     setCameraStream(null)
     coachAbortRef.current?.abort()
@@ -358,7 +403,7 @@ ${rows}
     speech.abort()
     setInput('')
     const eff = applyBenchTemp(character, benchTemp)
-    practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock())
+    practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock(character.id))
   }, [input, speech, character, benchTemp]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -501,19 +546,35 @@ ${rows}
           {/* Camera + controls row */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <div style={{ flex: 1 }}>
-              {cameraStream ? (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  style={{ width: '100%', maxHeight: 120, borderRadius: 7, background: '#000', display: 'block', objectFit: 'cover' }}
-                />
-              ) : (
-                <div style={{ width: '100%', height: 80, background: '#0f172a', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: '#475569', fontSize: 11 }}>Camera off</span>
-                </div>
-              )}
+              <div
+                ref={cameraBoxRef}
+                title="Drag bottom-right corner to resize"
+                style={{
+                  width: '100%',
+                  height: cameraHeight,
+                  minHeight: 80,
+                  maxHeight: 600,
+                  borderRadius: 7,
+                  background: '#0f172a',
+                  overflow: 'hidden',
+                  resize: 'vertical',
+                  position: 'relative'
+                }}
+              >
+                {cameraStream ? (
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    style={{ width: '100%', height: '100%', background: '#000', display: 'block', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ color: '#475569', fontSize: 11 }}>Camera off</span>
+                  </div>
+                )}
+              </div>
               {cameraError && <div style={{ color: '#dc2626', fontSize: 10, marginTop: 3 }}>{cameraError}</div>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 2 }}>
@@ -593,6 +654,14 @@ ${rows}
               {coachError && !practice.error && !speech.micError && (
                 <button onClick={() => setCoachError(null)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>✕</button>
               )}
+            </div>
+          )}
+
+          {/* ElevenLabs TTS fallback notice — informational, not an error */}
+          {ttsFallbackReason && (
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 5, color: '#92400e', fontSize: 10, padding: '4px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+              <span>Using browser voice — ElevenLabs failed: {ttsFallbackReason.slice(0, 100)}</span>
+              <button onClick={() => setTtsFallbackReason(null)} style={{ background: 'none', border: 'none', color: '#92400e', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>✕</button>
             </div>
           )}
 

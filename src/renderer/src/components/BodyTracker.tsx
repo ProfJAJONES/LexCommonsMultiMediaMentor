@@ -37,6 +37,9 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
   const rafRef = useRef<number>(0)
   const lastSampleMsRef = useRef<number>(0)
   const movementScoreRef = useRef<number>(0)
+  // Captured when detection begins. Used to compute an elapsed-time fallback
+  // for sample timestamps when video.currentTime can't be trusted (live captures).
+  const detectionStartMsRef = useRef<number>(0)
 
   const [enabled, setEnabled] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -162,7 +165,13 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
       const now = Date.now()
       if (now - lastSampleMsRef.current >= 1000) {
         lastSampleMsRef.current = now
-        onMovementSample(video.currentTime, movementScoreRef.current)
+        // Live MediaStream captures often leave video.currentTime at 0 — fall back
+        // to elapsed wall time since detection started for a reliable timestamp.
+        const vt = video.currentTime
+        const t = (typeof vt === 'number' && isFinite(vt) && vt > 0)
+          ? vt
+          : (performance.now() - detectionStartMsRef.current) / 1000
+        onMovementSample(t, movementScoreRef.current)
       }
     }
 
@@ -180,6 +189,7 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
         { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
       )
       detectorRef.current = detector
+      detectionStartMsRef.current = performance.now()
       setEnabled(true)
       setLoading(false)
       rafRef.current = requestAnimationFrame(runDetection)

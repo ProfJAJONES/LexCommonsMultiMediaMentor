@@ -22,3 +22,14 @@ declare module '*.jpeg' {
   const content: string
   export default content
 }
+
+// Vite's ?url import suffix returns a string URL for any asset.
+declare module '*?url' {
+  const url: string
+  export default url
+}
+
+// mammoth ships no TS types; we only use mammoth.extractRawText.
+declare module 'mammoth' {
+  export function extractRawText(input: { arrayBuffer: ArrayBuffer }): Promise<{ value: string; messages: unknown[] }>
+}

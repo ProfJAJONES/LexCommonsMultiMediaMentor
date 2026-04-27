@@ -81,6 +81,11 @@ export function useLivePractice(apiKey: string, provider: AIProvider = 'anthropi
     setStreamingText('')
     setError(null)
 
+    // Hoisted so the catch block can read the actual streamed content.
+    // Reading `streamingText` from closure gives a stale value — the
+    // useCallback closure captured at sendTurn invocation predates token updates.
+    let text = ''
+
     try {
       const systemPrompt = buildPracticeSystemPrompt(character, knowledgeBlock)
 
@@ -99,7 +104,6 @@ export function useLivePractice(apiKey: string, provider: AIProvider = 'anthropi
         }
       }
 
-      let text = ''
       await streamCompletion(provider, apiKey, {
         system: systemPrompt,
         messages: apiMessages,
@@ -118,12 +122,16 @@ export function useLivePractice(apiKey: string, provider: AIProvider = 'anthropi
       setStreamingText('')
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') {
-        // Commit whatever streamed so far
-        setMessages(prev => {
-          const cur = streamingText
-          if (!cur) return prev
-          return [...prev, { id: uid(), speaker: 'character', text: cur, timestamp: Date.now() }]
-        })
+        // Commit whatever streamed so far. Use the local `text` accumulator —
+        // the closure-captured `streamingText` is stale here.
+        if (text) {
+          setMessages(prev => [...prev, {
+            id: uid(),
+            speaker: 'character',
+            text,
+            timestamp: Date.now()
+          }])
+        }
         setStreamingText('')
         return
       }
@@ -132,7 +140,7 @@ export function useLivePractice(apiKey: string, provider: AIProvider = 'anthropi
     } finally {
       setIsResponding(false)
     }
-  }, [apiKey, provider, streamingText])
+  }, [apiKey, provider])
 
   const stopResponse = useCallback(() => {
     abortRef.current?.abort()

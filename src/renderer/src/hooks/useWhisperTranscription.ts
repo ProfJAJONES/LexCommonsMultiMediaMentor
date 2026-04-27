@@ -25,14 +25,16 @@ async function getPipeline() {
       const { pipeline, env } = await import('@huggingface/transformers')
       // Allow the model to be fetched from HuggingFace and cached locally
       env.allowLocalModels = false
-      // Pin dtype: the default q4 decoder fails ORT session creation with
-      // "Missing required scale: …weight_merged_0_scale" on this model build.
-      // fp32 encoder + q8 decoder is the well-tested combo for Xenova/whisper-tiny.en.
+      // Pin dtype to fp32 (string form, applies to ALL model components).
+      // The default/auto path picks q4-quantized weights for whisper-tiny.en, which
+      // fail ORT session creation: "Missing required scale: …weight_merged_0_scale
+      // … TransposeDQWeightsForMatMulNBits". The per-component object form
+      // (dtype: { encoder_model: ..., decoder_model_merged: ... }) silently falls
+      // through to device defaults when filename keys don't match — string form
+      // bypasses that and forces unquantized files (~150MB total, cached after
+      // first run, fully offline thereafter).
       return pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
-        dtype: {
-          encoder_model: 'fp32',
-          decoder_model_merged: 'q8'
-        }
+        dtype: 'fp32'
       })
     })()
   }
@@ -134,9 +136,8 @@ export function useWhisperTranscription() {
         const result = await whisper(float32, {
           sampling_rate: 16000,
           chunk_length_s: 30,
-          stride_length_s: 5,
-          language: 'english',
-          task: 'transcribe'
+          stride_length_s: 5
+          // No `language` / `task` — whisper-tiny.en is English-only and rejects those.
         })
 
         const text: string = Array.isArray(result)

@@ -137,22 +137,26 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
     ctx.textAlign = 'center'
 
     // ── Treble clef 𝄞 ──────────────────────────────────────────────────────
-    // Size the glyph so its top curl lands at the F5 staff line.
-    // With textBaseline='alphabetic': baseline = G4_y + 0.20*fontPx
-    // Glyph top ≈ baseline − 0.80*fontPx  →  fontPx = (G4_y − F5_y) / 0.60
+    // Empirically the Georgia/Times glyph ascends ~0.60*fontPx above the
+    // alphabetic baseline (not the 0.80 a generic font would). With baseline
+    // offset 0.20*fontPx below G4, the visible top is at G4 − 0.40*fontPx.
+    // To land the top on F5: fontPx = (G4_y − F5_y) / 0.40.
+    // The lower loop stays centered on G4 because both offsets scale with fontPx.
     const G4y = hzToY(392.00, height)
-    const trebleClefFontPx = Math.max(20, Math.round((G4y - hzToY(698.46, height)) / 0.60))
+    const trebleClefFontPx = Math.max(20, Math.round((G4y - hzToY(698.46, height)) / 0.36))
     ctx.font = `${trebleClefFontPx}px Georgia, "Times New Roman", serif`
     ctx.textBaseline = 'alphabetic'
     ctx.fillText('\u{1D11E}', clefCx, G4y + trebleClefFontPx * 0.20)
 
     // ── Bass clef 𝄢 ────────────────────────────────────────────────────────
-    // Top of glyph aligns near the top staff line (A3); nub lands on F3 (174.61 Hz)
+    // Glyph slightly taller than the bass staff so the visible top of the curl
+    // reaches the A3 line. ~8% bbox padding at top in Georgia is compensated
+    // by shifting the y coord up by that fraction of fontPx.
     const bassStaffPx = Math.abs(hzToY(98.00, height) - hzToY(220.00, height))
-    const bassClefFontPx = Math.max(18, Math.round(bassStaffPx * 0.95))
+    const bassClefFontPx = Math.max(20, Math.round(bassStaffPx * 1.15))
     ctx.font = `${bassClefFontPx}px Georgia, "Times New Roman", serif`
     ctx.textBaseline = 'top'
-    ctx.fillText('\u{1D122}', clefCx, hzToY(220.00, height))
+    ctx.fillText('\u{1D122}', clefCx, hzToY(220.00, height) - bassClefFontPx * 0.13)
 
     // Faint divider at Middle C (C4 = 261.63 Hz)
     ctx.strokeStyle = 'rgba(148,163,184,0.35)'

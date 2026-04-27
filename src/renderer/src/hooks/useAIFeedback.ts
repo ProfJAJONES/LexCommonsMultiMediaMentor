@@ -172,6 +172,9 @@ export function useAIFeedback() {
     const stored = parseInt(localStorage.getItem('mm_ai_scope') ?? '3', 10)
     return (stored >= 1 && stored <= 5 ? stored : 3) as KnowledgeScope
   })
+  const [elevenLabsKey, setElevenLabsKey] = useState<string>(() =>
+    localStorage.getItem('mm_elevenlabs_key') ?? ''
+  )
   const abortRef = useRef<AbortController | null>(null)
 
   // On mount, load from the IPC store (origin-independent JSON file).
@@ -187,6 +190,9 @@ export function useAIFeedback() {
       if (stored['mm_ai_scope']) {
         const s = parseInt(stored['mm_ai_scope'], 10)
         if (s >= 1 && s <= 5 && s !== knowledgeScope) setKnowledgeScope(s as KnowledgeScope)
+      }
+      if (stored['mm_elevenlabs_key'] && stored['mm_elevenlabs_key'] !== elevenLabsKey) {
+        setElevenLabsKey(stored['mm_elevenlabs_key'])
       }
     }).catch(() => { /* IPC unavailable — rely on localStorage only */ })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -221,6 +227,17 @@ export function useAIFeedback() {
     setKnowledgeScope(s)
     localStorage.setItem('mm_ai_scope', String(s))
     window.api.storeSet('mm_ai_scope', String(s))
+  }, [])
+
+  const saveElevenLabsKey = useCallback((key: string) => {
+    setElevenLabsKey(key)
+    if (key) {
+      localStorage.setItem('mm_elevenlabs_key', key)
+      window.api.storeSet('mm_elevenlabs_key', key)
+    } else {
+      localStorage.removeItem('mm_elevenlabs_key')
+      window.api.storeSet('mm_elevenlabs_key', null)
+    }
   }, [])
 
   const send = useCallback(async (
@@ -384,5 +401,5 @@ export function useAIFeedback() {
     })
   }, [apiKey, provider])
 
-  return { state, apiKey, provider, role, knowledgeScope, saveApiKey, saveProvider, saveRole, saveKnowledgeScope, send, sendWithImages, stop, clearChat, generateOnce }
+  return { state, apiKey, provider, role, knowledgeScope, elevenLabsKey, saveApiKey, saveProvider, saveRole, saveKnowledgeScope, saveElevenLabsKey, send, sendWithImages, stop, clearChat, generateOnce }
 }

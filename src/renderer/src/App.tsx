@@ -729,8 +729,15 @@ ${ann.comments.length === 0
 
   const graphWidth = 560
 
-  const durationSec = videoDuration ||
-    (audio.pitchHistory.length > 0 ? audio.pitchHistory[audio.pitchHistory.length - 1].t : 0)
+  // For live streams (webcam / screen) `video.duration` is Infinity or NaN, so
+  // we only trust videoDuration when it's a finite positive number (file playback).
+  // Otherwise derive from the latest sample timestamp across all history sources —
+  // captures live recordings correctly once the timestamp fixes in useAudioAnalysis
+  // and BodyTracker are in place.
+  const finiteVideoDuration = isFinite(videoDuration) && videoDuration > 0 ? videoDuration : 0
+  const lastT = (arr: { t: number }[]) => arr.length > 0 ? arr[arr.length - 1].t : 0
+  const durationSec = finiteVideoDuration ||
+    Math.max(lastT(audio.pitchHistory), lastT(audio.dbHistory), lastT(movementHistory))
   const hasAudioData = audio.pitchHistory.length > 0 || audio.dbHistory.length > 0
 
   return (
@@ -975,6 +982,7 @@ ${ann.comments.length === 0
               provider={ai.provider}
               domain={domain}
               selectedCameraId={selectedCameraId}
+              elevenLabsKey={ai.elevenLabsKey}
               onSessionData={msgs => { practiceMessagesRef.current = msgs }}
             />
           )}
@@ -1092,6 +1100,15 @@ ${ann.comments.length === 0
                   provider={ai.provider}
                   onSave={ai.saveApiKey}
                 />
+              </div>
+
+              {/* ElevenLabs Key — optional, used for higher-quality voices in Practice */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>ElevenLabs Key</span>
+                  <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: '#94a3b8', fontSize: 9 }}>optional · practice voices</span>
+                </div>
+                <ElevenLabsKeyInput apiKey={ai.elevenLabsKey} onSave={ai.saveElevenLabsKey} />
               </div>
 
               {/* Role */}
@@ -1991,6 +2008,36 @@ function btnStyle(bg: string): React.CSSProperties {
     padding: '6px 12px',
     whiteSpace: 'nowrap'
   }
+}
+
+// ---- Sidebar ElevenLabs key input (provider-agnostic, used only for practice TTS) ----
+function ElevenLabsKeyInput({ apiKey, onSave }: { apiKey: string; onSave: (k: string) => void }) {
+  const [draft, setDraft] = React.useState(apiKey)
+  const [show, setShow] = React.useState(false)
+  React.useEffect(() => { setDraft(apiKey) }, [apiKey])
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setDraft(val)
+    onSave(val.trim())
+  }
+  return (
+    <div style={{ display: 'flex', gap: 5 }}>
+      <input
+        type={show ? 'text' : 'password'}
+        value={draft}
+        onChange={handleChange}
+        placeholder="sk_… (leave blank for browser voice)"
+        style={{
+          flex: 1, border: '1px solid #e2e8f0', borderRadius: 6,
+          fontSize: 11, padding: '5px 8px', background: '#fff',
+          fontFamily: 'monospace', color: '#1e293b', outline: 'none'
+        }}
+      />
+      <button onClick={() => setShow(v => !v)} style={{ border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, padding: '0 7px' }}>
+        {show ? '🙈' : '👁'}
+      </button>
+    </div>
+  )
 }
 
 // ---- Sidebar API key input (saves on every keystroke so no Enter/blur required) ----

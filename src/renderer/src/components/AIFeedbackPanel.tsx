@@ -2,9 +2,11 @@ import React, { useState, useRef, useEffect } from 'react'
 import type { AIFeedbackState, AIFeedbackOptions, UserRole, KnowledgeScope } from '../hooks/useAIFeedback'
 import { buildSystemPrompt } from '../hooks/useAIFeedback'
 import { useAIKnowledgeBase, CATEGORY_LABELS, CATEGORY_COLORS } from '../hooks/useAIKnowledgeBase'
-import type { KnowledgeCategory, KnowledgeItem } from '../hooks/useAIKnowledgeBase'
+import type { KnowledgeCategory, KnowledgeItem, KnowledgeSourceFile } from '../hooks/useAIKnowledgeBase'
 import type { Domain } from '../hooks/useDomain'
 import { DOMAIN_CONFIG } from '../hooks/useDomain'
+import { PRACTICE_CHARACTERS } from '../config/practiceCharacters'
+import { parseDocument } from '../utils/parseDocument'
 import { useVisualAnalysis } from '../hooks/useVisualAnalysis'
 import type { FrameSample } from '../types'
 import type { AIProvider } from '../utils/aiClient'
@@ -121,7 +123,7 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
             </button>
           )}
           <button onClick={() => setShowKB(v => !v)} style={hdrBtn(showKB ? '#1e3a5f' : '#1e293b')} title="Knowledge base">
-            📚
+            📚 Knowledge Base
           </button>
           {!isEmpty && (
             <button onClick={onClear} style={hdrBtn('#1e293b')} title="Clear chat">
@@ -133,7 +135,7 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
 
       {/* ── Knowledge base ─────────────────────────────────────── */}
       {showKB && (
-        <KnowledgeBaseManager items={kb.items} onAdd={kb.add} onUpdate={kb.update} onRemove={kb.remove} />
+        <KnowledgeBaseManager items={kb.items} domain={domain} onAdd={kb.add} onUpdate={kb.update} onRemove={kb.remove} />
       )}
 
       {/* ── Persistent analysis buttons (always visible when video loaded) ── */}
@@ -502,28 +504,93 @@ function FormattedText({ text }: { text: string }) {
 
 function KnowledgeBaseManager({
   items,
+  domain,
   onAdd,
   onUpdate,
   onRemove
 }: {
   items: KnowledgeItem[]
-  onAdd: (title: string, body: string, category: KnowledgeCategory) => void
-  onUpdate: (id: string, patch: Partial<Pick<KnowledgeItem, 'title' | 'body' | 'category'>>) => void
+  domain: Domain
+  onAdd: (title: string, body: string, category: KnowledgeCategory, options?: { judgeIds?: string[]; sourceFile?: KnowledgeSourceFile }) => void
+  onUpdate: (id: string, patch: Partial<Pick<KnowledgeItem, 'title' | 'body' | 'category' | 'judgeIds'>>) => void
   onRemove: (id: string) => void
 }) {
   const [adding, setAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newBody, setNewBody] = useState('')
   const [newCat, setNewCat] = useState<KnowledgeCategory>('guideline')
+  const [newJudgeIds, setNewJudgeIds] = useState<string[]>([])
+  const [pendingSource, setPendingSource] = useState<KnowledgeSourceFile | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
   const [editField, setEditField] = useState<'title' | 'body' | null>(null)
   const [editVal, setEditVal] = useState('')
+  const [editJudgesId, setEditJudgesId] = useState<string | null>(null)
   const [filterCat, setFilterCat] = useState<KnowledgeCategory | 'all'>('all')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const judges = PRACTICE_CHARACTERS[domain] ?? []
+
+  function resetAddForm() {
+    setNewTitle(''); setNewBody(''); setNewCat('guideline')
+    setNewJudgeIds([]); setPendingSource(null); setUploadError(null)
+  }
 
   function handleAdd() {
     if (!newTitle.trim() || !newBody.trim()) return
-    onAdd(newTitle, newBody, newCat)
-    setNewTitle(''); setNewBody(''); setAdding(false)
+    onAdd(newTitle, newBody, newCat, {
+      judgeIds: newJudgeIds.length > 0 ? newJudgeIds : undefined,
+      sourceFile: pendingSource ?? undefined
+    })
+    resetAddForm()
+    setAdding(false)
+  }
+
+  function handleCancelAdd() {
+    resetAddForm()
+    setAdding(false)
+  }
+
+  async function handleFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''  // reset so picking the same file twice fires change
+    if (!file) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const parsed = await parseDocument(file)
+      // Pre-fill the add form with parsed content
+      const baseName = parsed.fileName.replace(/\.[^.]+$/, '')
+      setNewTitle(baseName)
+      setNewBody(parsed.text)
+      setNewCat('document')
+      setNewJudgeIds([])
+      setPendingSource({
+        name: parsed.fileName,
+        kind: parsed.kind,
+        size: parsed.fileSize,
+        pageCount: parsed.pageCount,
+        truncated: parsed.truncated || undefined
+      })
+      setAdding(true)
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to parse document')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function toggleNewJudge(id: string) {
+    setNewJudgeIds(prev => prev.includes(id) ? prev.filter(j => j !== id) : [...prev, id])
+  }
+
+  function toggleItemJudge(item: KnowledgeItem, judgeId: string) {
+    const current = item.judgeIds ?? []
+    const next = current.includes(judgeId)
+      ? current.filter(j => j !== judgeId)
+      : [...current, judgeId]
+    onUpdate(item.id, { judgeIds: next.length > 0 ? next : undefined })
   }
 
   function startEdit(id: string, field: 'title' | 'body', val: string) {
@@ -626,6 +693,46 @@ function KnowledgeBaseManager({
                     {it.body.length > 120 ? it.body.slice(0, 118) + '…' : it.body}
                   </div>
                 )}
+
+                {/* Source file metadata (uploaded docs only) */}
+                {it.sourceFile && (
+                  <div style={{ marginTop: 4, color: '#64748b', fontSize: 9, fontStyle: 'italic' }}>
+                    📄 {it.sourceFile.name}
+                    {it.sourceFile.pageCount ? ` · ${it.sourceFile.pageCount} pages` : ''}
+                    {it.sourceFile.truncated ? ' · truncated' : ''}
+                  </div>
+                )}
+
+                {/* Judge tags row */}
+                {judges.length > 0 && (
+                  <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontSize: 9, fontWeight: 600 }}>
+                      {(it.judgeIds && it.judgeIds.length > 0) ? 'Judges:' : 'All judges'}
+                    </span>
+                    {editJudgesId === it.id ? (
+                      <>
+                        {judges.map(j => {
+                          const active = (it.judgeIds ?? []).includes(j.id)
+                          return (
+                            <button key={j.id} onClick={() => toggleItemJudge(it, j.id)} style={chipBtn(active)}>
+                              {j.icon} {j.label}
+                            </button>
+                          )
+                        })}
+                        <button onClick={() => setEditJudgesId(null)} style={{ ...chipBtn(false), borderColor: '#cbd5e1' }}>done</button>
+                      </>
+                    ) : (
+                      <>
+                        {(it.judgeIds ?? []).map(jid => {
+                          const j = judges.find(x => x.id === jid)
+                          if (!j) return null
+                          return <span key={jid} style={chipBtn(true)}>{j.icon} {j.label}</span>
+                        })}
+                        <button onClick={() => setEditJudgesId(it.id)} style={{ ...chipBtn(false), borderStyle: 'dashed' }}>edit</button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <button onClick={() => onRemove(it.id)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, flexShrink: 0, padding: '0 2px' }}>
@@ -642,13 +749,48 @@ function KnowledgeBaseManager({
         )}
       </div>
 
-      {/* Add new item */}
+      {/* Hidden file input — triggered by the Upload button */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+        onChange={handleFilePicked}
+        style={{ display: 'none' }}
+      />
+
+      {/* Upload error */}
+      {uploadError && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, color: '#b91c1c', fontSize: 10, padding: '5px 8px' }}>
+          {uploadError}
+        </div>
+      )}
+
+      {/* Add / Upload buttons */}
       {!adding ? (
-        <button onClick={() => setAdding(true)} style={{ ...smBtn('#1e293b'), alignSelf: 'flex-start' }}>
-          + Add knowledge item
-        </button>
+        <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-start' }}>
+          <button onClick={() => setAdding(true)} style={smBtn('#1e293b')}>
+            + Add knowledge item
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            style={{ ...smBtn('#0ea5e9'), opacity: uploading ? 0.6 : 1 }}
+            title="Upload a PDF, DOCX, or TXT file"
+          >
+            {uploading ? 'Parsing…' : '📄 Upload document'}
+          </button>
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f8fafc', borderRadius: 6, padding: 10, border: '1px solid #bae6fd' }}>
+          {/* Source file pill (uploads only) */}
+          {pendingSource && (
+            <div style={{ background: '#e0f2fe', border: '1px solid #7dd3fc', borderRadius: 4, color: '#0369a1', fontSize: 10, padding: '4px 8px' }}>
+              📄 {pendingSource.name}
+              {pendingSource.pageCount ? ` · ${pendingSource.pageCount} pages` : ''}
+              {pendingSource.truncated ? ' · text truncated to fit prompt budget' : ''}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 6 }}>
             <input
               value={newTitle}
@@ -671,9 +813,29 @@ function KnowledgeBaseManager({
             rows={5}
             style={{ ...s.keyInput, resize: 'vertical', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' }}
           />
+
+          {/* Per-judge tagging chips */}
+          {judges.length > 0 && (
+            <div>
+              <div style={{ color: '#64748b', fontSize: 10, fontWeight: 600, marginBottom: 4 }}>
+                Show this to{newJudgeIds.length === 0 ? ': all judges' : ':'}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {judges.map(j => {
+                  const active = newJudgeIds.includes(j.id)
+                  return (
+                    <button key={j.id} onClick={() => toggleNewJudge(j.id)} style={chipBtn(active)}>
+                      {j.icon} {j.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={handleAdd} style={smBtn('#3b82f6')}>Save</button>
-            <button onClick={() => setAdding(false)} style={smBtn('#1e293b')}>Cancel</button>
+            <button onClick={handleCancelAdd} style={smBtn('#1e293b')}>Cancel</button>
           </div>
         </div>
       )}
@@ -696,6 +858,20 @@ function smBtn(bg: string): React.CSSProperties {
 
 function catBtn(active: boolean, color: string): React.CSSProperties {
   return { background: active ? color + '22' : 'transparent', border: `1px solid ${active ? color + '66' : '#bae6fd'}`, borderRadius: 4, color: active ? color : '#64748b', cursor: 'pointer', fontSize: 10, fontWeight: active ? 700 : 500, padding: '2px 7px', whiteSpace: 'nowrap' }
+}
+
+function chipBtn(active: boolean): React.CSSProperties {
+  return {
+    background: active ? '#0284c722' : 'transparent',
+    border: `1px solid ${active ? '#0284c766' : '#cbd5e1'}`,
+    borderRadius: 10,
+    color: active ? '#0284c7' : '#64748b',
+    cursor: 'pointer',
+    fontSize: 9,
+    fontWeight: active ? 700 : 500,
+    padding: '2px 7px',
+    whiteSpace: 'nowrap'
+  }
 }
 
 const s: Record<string, React.CSSProperties> = {

@@ -75,6 +75,10 @@ export function useAudioAnalysis(
   const lastSampleRef = useRef<number>(0)
   const smoothedPitchRef = useRef<number>(0)
   const isRunningRef = useRef(false)
+  // Captured when start() runs. Used to derive elapsed seconds when
+  // video.currentTime can't be trusted (live MediaStream captures often leave
+  // it at 0 or NaN). For file playback, video.currentTime takes precedence.
+  const sessionStartMsRef = useRef<number>(0)
 
   const [state, setState] = useState<AudioAnalysisState>({
     isAnalyzing: false,
@@ -162,6 +166,7 @@ export function useAudioAnalysis(
 
     const timeDomain = new Float32Array(FFT_SIZE)
     isRunningRef.current = true
+    sessionStartMsRef.current = performance.now()
     setState(s => ({ ...s, isAnalyzing: true }))
 
     const tick = (now: number) => {
@@ -192,7 +197,12 @@ export function useAudioAnalysis(
         smoothedPitchRef.current = 0
       }
 
-      const t = videoRef.current?.currentTime ?? 0
+      // Prefer video.currentTime when it's a valid finite positive value (file
+      // playback), fall back to elapsed wall time otherwise (live streams).
+      const vt = videoRef.current?.currentTime
+      const t = (typeof vt === 'number' && isFinite(vt) && vt > 0)
+        ? vt
+        : (performance.now() - sessionStartMsRef.current) / 1000
       setState(s => ({
         ...s,
         currentPitch: pitch,
