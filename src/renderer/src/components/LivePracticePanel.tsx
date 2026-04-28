@@ -202,11 +202,28 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
     if (practice.messages.length > prevMsgCount.current) {
       const latest = practice.messages[practice.messages.length - 1]
       if (latest.speaker === 'character') {
+        // For multi-speaker characters, extract the "Speaker Name: " prefix so each
+        // named individual uses their own assigned voice, and TTS skips the prefix.
+        let speakerId = character.id
+        let textToSpeak = latest.text
+        if (character.speakers && character.speakers.length > 0) {
+          const prefixMatch = latest.text.match(/^([^:\n]+):\s*/)
+          if (prefixMatch) {
+            const prefixLabel = prefixMatch[1].trim()
+            const matched = character.speakers.find(
+              sp => sp.label.toLowerCase() === prefixLabel.toLowerCase()
+            )
+            if (matched) {
+              speakerId = matched.id
+              textToSpeak = latest.text.slice(prefixMatch[0].length)
+            }
+          }
+        }
         speakTTS({
-          text: latest.text,
-          voiceId: voiceForCharacter(character.id, voiceOverrides),
+          text: textToSpeak,
+          voiceId: voiceForCharacter(speakerId, voiceOverrides),
           apiKey: elevenLabsKey ?? '',
-          kokoroVoice: kokoroVoiceOverrides[character.id] ?? DEFAULT_KOKORO_VOICE
+          kokoroVoice: kokoroVoiceOverrides[speakerId] ?? DEFAULT_KOKORO_VOICE
         }).then(result => {
           // If we silently fell back to browser TTS, surface the reason once.
           if (result.fallbackReason) setTtsFallbackReason(result.fallbackReason)
@@ -215,7 +232,7 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
       }
     }
     prevMsgCount.current = practice.messages.length
-  }, [practice.messages, ttsEnabled, elevenLabsKey, character.id, voiceOverrides, kokoroVoiceOverrides])
+  }, [practice.messages, ttsEnabled, elevenLabsKey, character.id, character.speakers, voiceOverrides, kokoroVoiceOverrides])
 
   // Subscribe to Kokoro progress and preload when TTS is on without an ElevenLabs key
   useEffect(() => {
@@ -568,33 +585,42 @@ ${rows}
                     <div style={{ color: '#0f172a', fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</div>
                     <div style={{ color: '#64748b', fontSize: 10, marginTop: 3, lineHeight: 1.35 }}>{c.description}</div>
                   </button>
-                  {/* Per-character voice selector */}
+                  {/* Voice selector — one row per speaker (or one row for single-voice characters) */}
                   <div style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '5px 8px',
                     background: active ? '#e0effe' : '#f8fafc',
                     border: `1.5px solid ${active ? '#3b82f6' : '#e2e8f0'}`,
                     borderTop: 'none',
-                    borderRadius: '0 0 10px 10px'
+                    borderRadius: '0 0 10px 10px',
+                    overflow: 'hidden'
                   }}>
-                    <span style={{ color: '#64748b', fontSize: 10, flexShrink: 0 }}>🔊</span>
-                    <select
-                      value={elevenLabsKey
-                        ? (voiceOverrides[c.id] ?? DEFAULT_VOICE_ID)
-                        : (kokoroVoiceOverrides[c.id] ?? DEFAULT_KOKORO_VOICE)}
-                      onChange={e => elevenLabsKey
-                        ? setVoiceForCharacter(c.id, e.target.value)
-                        : setKokoroVoiceForCharacter(c.id, e.target.value)}
-                      style={{ flex: 1, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', color: '#0f172a', cursor: 'pointer' }}
-                    >
-                      {elevenLabsKey
-                        ? FREE_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
-                        : KOKORO_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
-                      }
-                    </select>
-                    <span style={{ color: '#94a3b8', fontSize: 9, flexShrink: 0 }}>
-                      {elevenLabsKey ? 'ElevenLabs' : 'Kokoro'}
-                    </span>
+                    {(c.speakers ?? [{ id: c.id, label: c.label }]).map((sp, spIdx) => (
+                      <div key={sp.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '4px 8px',
+                        borderTop: spIdx > 0 ? '1px solid #e2e8f0' : 'none'
+                      }}>
+                        <span style={{ color: '#475569', fontSize: 10, minWidth: 0, flex: '0 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          🔊 {c.speakers ? sp.label : '🔊'}
+                        </span>
+                        <select
+                          value={elevenLabsKey
+                            ? (voiceOverrides[sp.id] ?? DEFAULT_VOICE_ID)
+                            : (kokoroVoiceOverrides[sp.id] ?? DEFAULT_KOKORO_VOICE)}
+                          onChange={e => elevenLabsKey
+                            ? setVoiceForCharacter(sp.id, e.target.value)
+                            : setKokoroVoiceForCharacter(sp.id, e.target.value)}
+                          style={{ flex: 1, fontSize: 10, padding: '2px 3px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', color: '#0f172a', cursor: 'pointer', minWidth: 0 }}
+                        >
+                          {elevenLabsKey
+                            ? FREE_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
+                            : KOKORO_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
+                          }
+                        </select>
+                      </div>
+                    ))}
+                    <div style={{ padding: '2px 8px 4px', color: '#94a3b8', fontSize: 9 }}>
+                      {elevenLabsKey ? 'ElevenLabs · saved per speaker' : 'Kokoro · saved per speaker'}
+                    </div>
                   </div>
                 </div>
               )

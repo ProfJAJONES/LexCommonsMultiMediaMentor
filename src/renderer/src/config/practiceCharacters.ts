@@ -1,5 +1,10 @@
 import type { Domain } from '../hooks/useDomain'
 
+export interface PracticeSpeaker {
+  id: string    // unique key used for voice-override storage
+  label: string // exact string that appears before the colon in AI output, e.g. "Judge Chen"
+}
+
 export interface PracticeCharacter {
   id: string
   label: string
@@ -8,6 +13,9 @@ export interface PracticeCharacter {
   openingLine: string        // injected as first assistant message — no API call needed
   systemPrompt: string
   responseGuidance: string   // appended reminder at the end of every system prompt
+  /** Named individuals within a multi-speaker character. When present, each speaker
+   *  gets its own voice dropdown and TTS voice. */
+  speakers?: PracticeSpeaker[]
 }
 
 export const PRACTICE_CHARACTERS: Record<Domain, PracticeCharacter[]> = {
@@ -53,7 +61,15 @@ Jury composition:
 - Others: background reactions — nodding, writing, glazed expressions, whispering
 
 After each argument, show 2–4 juror reactions labeled "Juror X (Name):" — confusion, agreement, skepticism, sidebar comments. Help the student understand how their closing is landing with real people.`,
-      responseGuidance: 'Show 2–4 juror reactions labeled "Juror X (Name):". Mix engagement levels. Not everyone is persuaded easily. Keep it brief and vivid.'
+      responseGuidance: 'Show 2–4 juror reactions labeled "Juror X (Name):". Mix engagement levels. Not everyone is persuaded easily. Keep it brief and vivid.',
+      speakers: [
+        { id: 'juror_1_rita',   label: 'Juror 1 (Rita)' },
+        { id: 'juror_3_derek',  label: 'Juror 3 (Derek)' },
+        { id: 'juror_5_sandra', label: 'Juror 5 (Sandra)' },
+        { id: 'juror_7_alan',   label: 'Juror 7 (Alan)' },
+        { id: 'juror_9_yara',   label: 'Juror 9 (Yara)' },
+        { id: 'juror_11_frank', label: 'Juror 11 (Frank)' }
+      ]
     },
     {
       id: 'appellate_panel',
@@ -72,7 +88,12 @@ Judge Priya Patel: Focused on record preservation, waiver, and procedural issues
 Format: One judge speaks per response. Rotate in order (Chen → Williams → Patel → Chen…) unless the student's last response cries out for a specific judge's concern. Label clearly: "Judge Chen:" etc.
 
 This is a hot bench — interrupt, press on hypotheticals, challenge weak points. React specifically to what the student just said. Keep each judge's turn to 1–3 sentences.`,
-      responseGuidance: 'One judge speaks per turn (rotate Chen→Williams→Patel). Label "Judge [Name]:" React to what was just said. Hot bench. 1–3 sentences.'
+      responseGuidance: 'One judge speaks per turn (rotate Chen→Williams→Patel). Label "Judge [Name]:" React to what was just said. Hot bench. 1–3 sentences.',
+      speakers: [
+        { id: 'judge_chen',     label: 'Judge Chen' },
+        { id: 'judge_williams', label: 'Judge Williams' },
+        { id: 'judge_patel',    label: 'Judge Patel' }
+      ]
     },
     {
       id: 'supreme_court',
@@ -93,7 +114,18 @@ Justice Barrett: Originalist, precise about text and history, asks about analogo
 Justice Jackson: Progressive, focused on structural constitutional questions, history, and the breadth of the ruling.
 
 One Justice speaks per response. Rotate through them. Label clearly: "Justice Kagan:" etc. This is an extremely hot bench. Multiple justices will interrupt in quick succession. Press hypotheticals, challenge limiting principles. 1–3 sentences per turn.`,
-      responseGuidance: 'One Justice per turn. Label "Justice [Name]:" Rotate through. React to what was just said. Hot bench. 1–3 sentences.'
+      responseGuidance: 'One Justice per turn. Label "Justice [Name]:" Rotate through. React to what was just said. Hot bench. 1–3 sentences.',
+      speakers: [
+        { id: 'cj_roberts',   label: 'Chief Justice Roberts' },
+        { id: 'j_thomas',     label: 'Justice Thomas' },
+        { id: 'j_alito',      label: 'Justice Alito' },
+        { id: 'j_sotomayor',  label: 'Justice Sotomayor' },
+        { id: 'j_kagan',      label: 'Justice Kagan' },
+        { id: 'j_gorsuch',    label: 'Justice Gorsuch' },
+        { id: 'j_kavanaugh',  label: 'Justice Kavanaugh' },
+        { id: 'j_barrett',    label: 'Justice Barrett' },
+        { id: 'j_jackson',    label: 'Justice Jackson' }
+      ]
     }
   ],
 
@@ -115,7 +147,12 @@ Professor Marcus Reed (Voice & Speech): Technical focus. Evaluates projection, d
 Professor Ingrid Shaw (Directing/Physical Life): Focused on stage picture, physical life of the performance, use of space and levels, gestural vocabulary, and whether physical choices are theatrically compelling and intentional.
 
 One professor responds per turn. Rotate Voss → Reed → Shaw → Voss. Label clearly: "Professor [Name]:" React to what the student is actually doing — mix genuine encouragement with specific, pointed critique. Ask questions about choices: "Why did you make that choice?" "What does your character want in that moment?" Keep each professor's turn to 2–3 sentences.`,
-      responseGuidance: 'One professor per turn (rotate Voss→Reed→Shaw). Label "Professor [Name]:" Be specific and honest. Mix praise with real critique. 2–3 sentences.'
+      responseGuidance: 'One professor per turn (rotate Voss→Reed→Shaw). Label "Professor [Name]:" Be specific and honest. Mix praise with real critique. 2–3 sentences.',
+      speakers: [
+        { id: 'prof_voss', label: 'Professor Voss' },
+        { id: 'prof_reed', label: 'Professor Reed' },
+        { id: 'prof_shaw', label: 'Professor Shaw' }
+      ]
     }
   ],
 
@@ -137,7 +174,12 @@ Professor Yuki Tanaka (Musicality & Interpretation): Focused on phrasing, dynami
 Professor Elena Vasquez (Performance Practice & Stage Presence): Focused on historical context, stylistic appropriateness of the repertoire, and how the student presents themselves as a performer — presence, communication, professionalism.
 
 One professor responds per turn. Rotate Okafor → Tanaka → Vasquez → Okafor. Label clearly: "Professor [Name]:" Respond to the actual performance the student is describing or demonstrating. Be honest and specific — this is a jury exam. Ask about preparation, choices, and intention. Keep each professor's turn to 2–3 sentences.`,
-      responseGuidance: 'One professor per turn (rotate Okafor→Tanaka→Vasquez). Label "Professor [Name]:" Specific and honest. 2–3 sentences.'
+      responseGuidance: 'One professor per turn (rotate Okafor→Tanaka→Vasquez). Label "Professor [Name]:" Specific and honest. 2–3 sentences.',
+      speakers: [
+        { id: 'prof_okafor',  label: 'Professor Okafor' },
+        { id: 'prof_tanaka',  label: 'Professor Tanaka' },
+        { id: 'prof_vasquez', label: 'Professor Vasquez' }
+      ]
     }
   ],
 
@@ -159,7 +201,12 @@ Evaluator Professor Ryan Torres (Academic Rhetoric): Focused on argument structu
 Evaluator Sandra Kim (Toastmasters International Judge): Focused on vocal variety, body language, time management, audience engagement, and overall communication effectiveness. Constructive and specific. Uses the Toastmasters competency framework.
 
 One evaluator responds per turn. Rotate Monroe → Torres → Kim → Monroe. Label clearly: "Evaluator [Name]:" React to what the speaker just said or did. Name what worked and what didn't — specifically. Ask questions to deepen the speaker's thinking. Keep each evaluator's turn to 2–3 sentences.`,
-      responseGuidance: 'One evaluator per turn (rotate Monroe→Torres→Kim). Label "Evaluator [Name]:" Actionable and specific. 2–3 sentences.'
+      responseGuidance: 'One evaluator per turn (rotate Monroe→Torres→Kim). Label "Evaluator [Name]:" Actionable and specific. 2–3 sentences.',
+      speakers: [
+        { id: 'eval_monroe', label: 'Evaluator Monroe' },
+        { id: 'eval_torres', label: 'Evaluator Torres' },
+        { id: 'eval_kim',    label: 'Evaluator Kim' }
+      ]
     }
   ],
 
@@ -211,7 +258,16 @@ Key students:
 After each teacher turn, show 1–3 student responses (labeled by name in brackets, e.g. [Alex:]). React specifically to what the teacher said: answer questions (sometimes incorrectly), ask follow-up questions, get confused by jargon, respond to cold calls with nervousness or wrong answers, occasionally go off-topic or get into a side conversation.
 
 This is a real classroom: not everyone is paying attention, not everyone understands, and the teacher must manage it actively.`,
-      responseGuidance: 'Show 1–3 student reactions (labeled "[Name]:"). React specifically to what the teacher said. Mix engagement levels. Some students are wrong or off-task.'
+      responseGuidance: 'Show 1–3 student reactions labeled "Name: reaction" (e.g. "Alex: I don\'t understand that part."). Use plain "Name:" format, no brackets. Mix engagement levels. Some students are wrong or off-task.',
+      speakers: [
+        { id: 'student_alex',   label: 'Alex' },
+        { id: 'student_jordan', label: 'Jordan' },
+        { id: 'student_sam',    label: 'Sam' },
+        { id: 'student_morgan', label: 'Morgan' },
+        { id: 'student_casey',  label: 'Casey' },
+        { id: 'student_tyler',  label: 'Tyler' },
+        { id: 'student_priya',  label: 'Priya' }
+      ]
     }
   ]
 }
