@@ -14,6 +14,7 @@ import { AIFeedbackPanel } from './components/AIFeedbackPanel'
 import { ReportPanel } from './components/ReportPanel'
 import { LivePracticePanel } from './components/LivePracticePanel'
 import { BodyTracker } from './components/BodyTracker'
+import { Metronome } from './components/Metronome'
 import { BlackHoleSetup } from './components/BlackHoleSetup'
 import { useAudioAnalysis } from './hooks/useAudioAnalysis'
 import { useAnnotations } from './hooks/useAnnotations'
@@ -1780,6 +1781,7 @@ ${ann.comments.length === 0
               hz={audio.currentPitch}
               width={graphWidth}
             />
+            <Metronome width={graphWidth} />
             <DecibelGraph
               ref={decibelGraphRef}
               samples={audio.dbHistory}
