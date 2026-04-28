@@ -1162,7 +1162,7 @@ ${ann.comments.length === 0
 
           {/* Drawer content */}
           {showSettingsDrawer && (
-            <div style={{ background: '#f8fafc', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ background: '#f8fafc', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', maxHeight: '60vh' }}>
 
               {/* Provider selector */}
               <div>
