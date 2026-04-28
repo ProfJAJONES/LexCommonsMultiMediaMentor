@@ -1247,6 +1247,33 @@ ${ann.comments.length === 0
                 </div>
               </div>
 
+              {/* Accessibility — OpenDyslexic font toggle */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>Accessibility</div>
+                <button
+                  onClick={toggleDyslexicFont}
+                  title={dyslexicFont ? 'Switch to standard font' : 'Switch to OpenDyslexic font'}
+                  style={{
+                    width: '100%', border: `1.5px solid ${dyslexicFont ? '#0284c7' : '#e2e8f0'}`,
+                    borderRadius: 7, background: dyslexicFont ? '#eff6ff' : '#fff',
+                    color: dyslexicFont ? '#0369a1' : '#475569',
+                    cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                    padding: '7px 12px', textAlign: 'left', display: 'flex',
+                    alignItems: 'center', justifyContent: 'space-between'
+                  }}
+                >
+                  <span>OpenDyslexic font</span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, borderRadius: 10, padding: '2px 8px',
+                    background: dyslexicFont ? '#e0f2fe' : '#f1f5f9',
+                    color: dyslexicFont ? '#0369a1' : '#64748b',
+                    border: `1px solid ${dyslexicFont ? '#7dd3fc' : '#e2e8f0'}`
+                  }}>
+                    {dyslexicFont ? 'On' : 'Off'}
+                  </span>
+                </button>
+              </div>
+
             </div>
           )}
         </div>
@@ -1582,18 +1609,6 @@ ${ann.comments.length === 0
           )}
 
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
-            {/* Dyslexic font toggle */}
-            <button
-              onClick={toggleDyslexicFont}
-              title={dyslexicFont ? 'Switch to standard font' : 'Switch to OpenDyslexic font'}
-              style={{
-                ...btnStyle(dyslexicFont ? '#0284c7' : '#475569'),
-                fontSize: 12, padding: '4px 9px',
-                ...(dyslexicFont ? { boxShadow: '0 0 0 2px #bae6fd' } : {})
-              }}
-            >
-              Aa
-            </button>
             {/* Annotation tools */}
             <span style={{ color: '#475569', fontSize: 12, alignSelf: 'center', marginRight: 4 }}>Draw:</span>
             {(['rect', 'circle', 'arrow', 'text'] as AnnotationTool[]).map(t => (
