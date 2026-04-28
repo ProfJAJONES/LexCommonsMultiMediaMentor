@@ -837,6 +837,29 @@ ${rows}
             </div>
           )}
 
+          {/* Speech stats bar — live during session */}
+          {sessionStats.turnCount > 0 && (() => {
+            const avgWpm = sessionStats.totalDurationMs > 0
+              ? Math.round(sessionStats.totalWords / (sessionStats.totalDurationMs / 60000))
+              : 0
+            const top3 = Object.entries(sessionStats.fillers.breakdown)
+              .sort((a, b) => b[1] - a[1]).slice(0, 3)
+            return (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 9px', fontSize: 10, color: '#475569', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, color: '#0284c7' }}>📊</span>
+                {avgWpm > 0 && <span><span style={{ fontWeight: 700 }}>{avgWpm}</span> WPM avg</span>}
+                {sessionStats.fillers.total > 0 && (
+                  <span>
+                    <span style={{ fontWeight: 700, color: '#dc2626' }}>{sessionStats.fillers.total}</span> filler{sessionStats.fillers.total !== 1 ? 's' : ''}
+                    {top3.length > 0 && <span style={{ color: '#94a3b8' }}>{' '}({top3.map(([k, v]) => `"${k}" ×${v}`).join(', ')})</span>}
+                  </span>
+                )}
+                {sessionStats.fillers.total === 0 && avgWpm > 0 && <span style={{ color: '#34d399', fontWeight: 600 }}>No fillers detected</span>}
+                <span style={{ color: '#cbd5e1' }}>{sessionStats.turnCount} turn{sessionStats.turnCount !== 1 ? 's' : ''}</span>
+              </div>
+            )
+          })()}
+
           {/* Input area */}
           <div style={s.inputArea}>
 
@@ -931,8 +954,8 @@ ${rows}
         </>
       )}
 
-      {/* ── Speech stats bar — shown during and after session ──── */}
-      {sessionStats.turnCount > 0 && (() => {
+      {/* ── Speech stats bar — shown after session ends ─────────── */}
+      {!practice.sessionActive && sessionStats.turnCount > 0 && (() => {
         const avgWpm = sessionStats.totalDurationMs > 0
           ? Math.round(sessionStats.totalWords / (sessionStats.totalDurationMs / 60000))
           : 0
