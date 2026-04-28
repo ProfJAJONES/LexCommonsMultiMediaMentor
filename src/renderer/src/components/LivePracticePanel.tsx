@@ -7,7 +7,11 @@ import { useWhisperTranscription } from '../hooks/useWhisperTranscription'
 import { useAIKnowledgeBase } from '../hooks/useAIKnowledgeBase'
 import { streamCompletion, type AIProvider } from '../utils/aiClient'
 import { speak as speakTTS, cancelSpeech } from '../utils/elevenLabsTTS'
-import { voiceForCharacter } from '../config/elevenLabsVoices'
+import { voiceForCharacter, FREE_VOICES, DEFAULT_VOICE_ID } from '../config/elevenLabsVoices'
+import {
+  KOKORO_VOICES, DEFAULT_KOKORO_VOICE,
+  onKokoroProgress, preloadKokoro, type KokoroProgress
+} from '../utils/kokoroTTS'
 
 interface Props {
   apiKey: string
@@ -43,6 +47,42 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
   const speech = useWhisperTranscription()
   const kb = useAIKnowledgeBase(domain)
   const chatEndRef = useRef<HTMLDivElement>(null)
+
+  // ElevenLabs voice overrides — persisted per character ID
+  const [voiceOverrides, setVoiceOverrides] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('mm_voice_overrides') ?? '{}') } catch { return {} }
+  })
+
+  function setVoiceForCharacter(characterId: string, voiceId: string) {
+    const next = { ...voiceOverrides, [characterId]: voiceId }
+    setVoiceOverrides(next)
+    localStorage.setItem('mm_voice_overrides', JSON.stringify(next))
+  }
+
+  // Kokoro voice overrides — persisted per character ID
+  const [kokoroVoiceOverrides, setKokoroVoiceOverrides] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('mm_kokoro_voice_overrides') ?? '{}') } catch { return {} }
+  })
+
+  function setKokoroVoiceForCharacter(characterId: string, voiceId: string) {
+    const next = { ...kokoroVoiceOverrides, [characterId]: voiceId }
+    setKokoroVoiceOverrides(next)
+    localStorage.setItem('mm_kokoro_voice_overrides', JSON.stringify(next))
+  }
+
+  // Kokoro loading progress
+  const [kokoroProgress, setKokoroProgress] = useState<KokoroProgress>({ pct: 0, status: 'idle' })
+
+  // Input mode: 'voice' shows the mic button; 'text' hides it for instrumentalists
+  const [inputMode, setInputMode] = useState<'voice' | 'text'>(() =>
+    (localStorage.getItem('mm_input_mode') as 'voice' | 'text' | null) ?? 'voice'
+  )
+
+  function toggleInputMode() {
+    const next = inputMode === 'voice' ? 'text' : 'voice'
+    setInputMode(next)
+    localStorage.setItem('mm_input_mode', next)
+  }
 
   // Bench temperature (appellate / SCOTUS only)
   const [benchTemp, setBenchTemp] = useState<'cold' | 'warm' | 'hot'>('hot')
@@ -145,8 +185,9 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
       if (latest.speaker === 'character') {
         speakTTS({
           text: latest.text,
-          voiceId: voiceForCharacter(character.id),
-          apiKey: elevenLabsKey ?? ''
+          voiceId: voiceForCharacter(character.id, voiceOverrides),
+          apiKey: elevenLabsKey ?? '',
+          kokoroVoice: kokoroVoiceOverrides[character.id] ?? DEFAULT_KOKORO_VOICE
         }).then(result => {
           // If we silently fell back to browser TTS, surface the reason once.
           if (result.fallbackReason) setTtsFallbackReason(result.fallbackReason)
@@ -155,7 +196,17 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
       }
     }
     prevMsgCount.current = practice.messages.length
-  }, [practice.messages, ttsEnabled, elevenLabsKey, character.id])
+  }, [practice.messages, ttsEnabled, elevenLabsKey, character.id, voiceOverrides, kokoroVoiceOverrides])
+
+  // Subscribe to Kokoro progress and preload when TTS is on without an ElevenLabs key
+  useEffect(() => {
+    const unsub = onKokoroProgress(setKokoroProgress)
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    if (ttsEnabled && !elevenLabsKey) preloadKokoro()
+  }, [ttsEnabled, elevenLabsKey])
 
   // Wire stream to video element after React re-renders the <video> into the DOM
   useEffect(() => {
@@ -437,6 +488,13 @@ ${rows}
           >
             {ttsEnabled ? '🔊' : '🔇'}
           </button>
+          <button
+            onClick={toggleInputMode}
+            title={inputMode === 'text' ? 'Text-only mode (for instrumentalists) — click for voice' : 'Voice input mode — click for text-only'}
+            style={hdrBtn(inputMode === 'text')}
+          >
+            {inputMode === 'text' ? '⌨️' : '🎤'}
+          </button>
           {practice.sessionActive && (
             <button onClick={handleEnd} style={{ ...hdrBtn(false), color: '#dc2626', borderColor: '#fca5a5' }}>
               ⏹ End
@@ -522,6 +580,58 @@ ${rows}
               </div>
             </div>
           )}
+
+          {/* Voice picker — ElevenLabs when key is set, Kokoro otherwise */}
+          <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 7, border: '1px solid #e2e8f0' }}>
+            <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
+              🔊 Voice for {character.label}
+            </div>
+            {elevenLabsKey ? (
+              <>
+                <select
+                  value={voiceOverrides[character.id] ?? DEFAULT_VOICE_ID}
+                  onChange={e => setVoiceForCharacter(character.id, e.target.value)}
+                  style={{ width: '100%', fontSize: 12, padding: '5px 7px', borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a', cursor: 'pointer' }}
+                >
+                  {FREE_VOICES.map(v => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+                <div style={{ color: '#94a3b8', fontSize: 10, marginTop: 4 }}>ElevenLabs · saved per character</div>
+              </>
+            ) : (
+              <>
+                <select
+                  value={kokoroVoiceOverrides[character.id] ?? DEFAULT_KOKORO_VOICE}
+                  onChange={e => setKokoroVoiceForCharacter(character.id, e.target.value)}
+                  style={{ width: '100%', fontSize: 12, padding: '5px 7px', borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a', cursor: 'pointer' }}
+                >
+                  {KOKORO_VOICES.map(v => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+                {kokoroProgress.status === 'loading' && (
+                  <div style={{ marginTop: 5 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 10, marginBottom: 2 }}>
+                      <span>Downloading voice model…</span>
+                      <span>{kokoroProgress.pct}%</span>
+                    </div>
+                    <div style={{ background: '#e2e8f0', borderRadius: 4, height: 4, overflow: 'hidden' }}>
+                      <div style={{ background: '#3b82f6', height: '100%', width: `${kokoroProgress.pct}%`, transition: 'width 0.3s' }} />
+                    </div>
+                  </div>
+                )}
+                {kokoroProgress.status === 'error' && (
+                  <div style={{ color: '#dc2626', fontSize: 10, marginTop: 4 }}>Voice model failed to load — will use browser voice instead.</div>
+                )}
+                {kokoroProgress.status !== 'loading' && kokoroProgress.status !== 'error' && (
+                  <div style={{ color: '#94a3b8', fontSize: 10, marginTop: 4 }}>
+                    {kokoroProgress.status === 'ready' ? 'Kokoro · local · ready' : 'Kokoro · local · downloads ~82 MB on first use'}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
 
           {noApiKey && (
             <div style={{ color: '#dc2626', fontSize: 11, marginTop: 8, padding: '6px 8px', background: '#fef2f2', borderRadius: 5, border: '1px solid #fca5a5' }}>
@@ -672,8 +782,8 @@ ${rows}
           {/* Input area */}
           <div style={s.inputArea}>
 
-            {/* Primary: speech button */}
-            {!practice.isResponding && !coachNote && (() => {
+            {/* Primary: speech button (voice mode only) */}
+            {inputMode === 'voice' && !practice.isResponding && !coachNote && (() => {
               const isRecording = speech.isListening && speech.liveTranscript === ''
               const isTranscribing = speech.isListening && speech.liveTranscript === 'Transcribing…'
               const bg = isTranscribing
@@ -729,10 +839,12 @@ ${rows}
                     ? 'Transcribing your speech…'
                     : speech.isListening
                       ? 'Recording…'
-                      : 'Or type here and press Enter'
+                      : inputMode === 'text'
+                        ? 'Type your response and press Enter'
+                        : 'Or type here and press Enter'
               }
               disabled={practice.isResponding || speech.isListening}
-              rows={2}
+              rows={inputMode === 'text' ? 3 : 2}
               style={{
                 ...s.textarea,
                 opacity: (practice.isResponding || speech.isListening) ? 0.55 : 1,

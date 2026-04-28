@@ -47,7 +47,7 @@ export default defineConfig({
       }
     ],
     optimizeDeps: {
-      exclude: ['@xenova/transformers']
+      exclude: ['@xenova/transformers', 'kokoro-js']
     }
   }
 })

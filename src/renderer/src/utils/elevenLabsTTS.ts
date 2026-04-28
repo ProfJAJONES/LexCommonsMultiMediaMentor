@@ -1,14 +1,13 @@
 /**
  * elevenLabsTTS
  *
- * Speak text via ElevenLabs API, fall back to browser SpeechSynthesis on any
- * failure (missing key, network error, quota exceeded, etc.). Uses the
- * multilingual v2 model — broadly compatible across free and paid accounts.
- * Higher-tier paid plans can switch to eleven_flash_v2_5 for ~500ms first byte.
- *
- * Maintains module-level singletons so a new utterance cancels the previous
- * one — same semantics as window.speechSynthesis.cancel() + speak().
+ * Speak text via ElevenLabs API when a key is set.
+ * When no key is configured, falls back to local Kokoro TTS (first use
+ * triggers a ~82 MB one-time model download).
+ * Final fallback is browser SpeechSynthesis if Kokoro fails.
  */
+
+import { speakKokoro, cancelKokoro } from './kokoroTTS'
 
 let currentAudio: HTMLAudioElement | null = null
 let currentAbort: AbortController | null = null
@@ -18,16 +17,16 @@ export interface SpeakOptions {
   text: string
   voiceId: string
   apiKey: string
-  /** ElevenLabs voice stability (0-1). Higher = more consistent, less expressive. */
+  /** Kokoro voice ID (used when apiKey is empty). */
+  kokoroVoice?: string
+  /** ElevenLabs voice stability (0-1). */
   stability?: number
-  /** ElevenLabs similarity boost (0-1). Higher = closer to source voice. */
+  /** ElevenLabs similarity boost (0-1). */
   similarityBoost?: number
 }
 
 export interface SpeakResult {
-  /** Which engine actually produced the audio. */
-  engine: 'elevenlabs' | 'browser'
-  /** Filled when engine === 'browser' and ElevenLabs failed (so callers can surface a toast). */
+  engine: 'elevenlabs' | 'kokoro' | 'browser'
   fallbackReason?: string
 }
 
@@ -44,6 +43,7 @@ export function cancelSpeech(): void {
     try { window.speechSynthesis.cancel() } catch { /* ok */ }
     currentUtterance = null
   }
+  cancelKokoro()
 }
 
 async function speakBrowser(text: string): Promise<void> {
@@ -54,7 +54,7 @@ async function speakBrowser(text: string): Promise<void> {
   u.pitch = 1.0
   currentUtterance = u
   return new Promise<void>(resolve => {
-    u.onend = () => { if (currentUtterance === u) currentUtterance = null; resolve() }
+    u.onend  = () => { if (currentUtterance === u) currentUtterance = null; resolve() }
     u.onerror = () => { if (currentUtterance === u) currentUtterance = null; resolve() }
     window.speechSynthesis.speak(u)
   })
@@ -62,21 +62,13 @@ async function speakBrowser(text: string): Promise<void> {
 
 async function speakElevenLabs(opts: SpeakOptions): Promise<void> {
   const { text, voiceId, apiKey, stability = 0.5, similarityBoost = 0.75 } = opts
-
   const controller = new AbortController()
   currentAbort = controller
 
-  // Plain endpoint + default model = compatible with free-tier accounts.
-  // optimize_streaming_latency and the flash/turbo v2.5 models are paid-only on
-  // many plans and return HTTP 402.
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'xi-api-key': apiKey,
-      'Content-Type': 'application/json',
-      'Accept': 'audio/mpeg'
-    },
+    headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
     body: JSON.stringify({
       text,
       model_id: 'eleven_multilingual_v2',
@@ -87,8 +79,7 @@ async function speakElevenLabs(opts: SpeakOptions): Promise<void> {
 
   if (!response.ok) {
     const err = await response.text().catch(() => '')
-    // Log full payload to console for debugging — toast may be truncated.
-    console.error('[ElevenLabs] HTTP', response.status, 'body:', err, 'voiceId:', voiceId, 'model:', 'eleven_multilingual_v2')
+    console.error('[ElevenLabs] HTTP', response.status, err, 'voiceId:', voiceId)
     throw new Error(`ElevenLabs ${response.status}: ${err.slice(0, 400) || response.statusText}`)
   }
 
@@ -110,29 +101,35 @@ async function speakElevenLabs(opts: SpeakOptions): Promise<void> {
   })
 }
 
-/**
- * Speak text. Cancels any previous utterance first.
- * Returns which engine was used so the caller can surface fallback errors.
- */
 export async function speak(opts: SpeakOptions): Promise<SpeakResult> {
   cancelSpeech()
-  const { text, voiceId, apiKey } = opts
+  const { text, voiceId, apiKey, kokoroVoice } = opts
   if (!text.trim()) return { engine: 'browser' }
 
-  // No key → straight to browser TTS.
-  if (!apiKey || !voiceId) {
-    await speakBrowser(text)
-    return { engine: 'browser' }
+  // ── ElevenLabs path ───────────────────────────────────────────────────────
+  if (apiKey && voiceId) {
+    try {
+      await speakElevenLabs(opts)
+      return { engine: 'elevenlabs' }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return { engine: 'elevenlabs' }
+      const reason = err instanceof Error ? err.message : String(err)
+      // Fall through to Kokoro
+      try {
+        await speakKokoro(text, kokoroVoice)
+        return { engine: 'kokoro', fallbackReason: reason }
+      } catch {
+        await speakBrowser(text)
+        return { engine: 'browser', fallbackReason: reason }
+      }
+    }
   }
 
+  // ── Kokoro path (no ElevenLabs key) ───────────────────────────────────────
   try {
-    await speakElevenLabs(opts)
-    return { engine: 'elevenlabs' }
+    await speakKokoro(text, kokoroVoice)
+    return { engine: 'kokoro' }
   } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      // Caller cancelled — don't fall back to browser TTS, just return.
-      return { engine: 'elevenlabs' }
-    }
     const reason = err instanceof Error ? err.message : String(err)
     await speakBrowser(text)
     return { engine: 'browser', fallbackReason: reason }

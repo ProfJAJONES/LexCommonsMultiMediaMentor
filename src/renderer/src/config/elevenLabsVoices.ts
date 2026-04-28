@@ -1,36 +1,24 @@
-/**
- * Default ElevenLabs voice IDs per PracticeCharacter id.
- *
- * These are well-known library voice IDs available on every ElevenLabs account
- * (no clone required). Picked to roughly fit each character's persona.
- *
- * Voice IDs are stable — sourced from elevenlabs.io/voice-library.
- */
-
-// Diagnostic baseline: every character uses Rachel (21m00Tcm4TlvDq8ikWAM),
-// the longest-standing free-tier voice. Once confirmed working on the user's
-// account, expand to per-character voices using only those that respond 200 —
-// we hit 402 paid_plan_required on Domi (AZnzlk1XvdvUeBnXmlld) so several of
-// the previously-mapped library voices are likely Pro-only on this plan.
-const RACHEL = '21m00Tcm4TlvDq8ikWAM'
-
-export const ELEVEN_LABS_VOICES: Record<string, string> = {
-  // ── Law domain ──
-  trial_judge:     RACHEL,
-  jury:            RACHEL,
-  appellate_panel: RACHEL,
-  supreme_court:   RACHEL,
-
-  // ── Other domains (debate / theater / music / public speaking) ──
-  faculty_jury:    RACHEL,
-  evaluator_panel: RACHEL,
-  opponent:        RACHEL,
-  classroom:       RACHEL,
+export interface VoiceOption {
+  id: string
+  name: string
 }
 
-/** Fallback for any unmapped character.id. */
-export const DEFAULT_VOICE_ID = RACHEL
+/** Free-tier voices available on every ElevenLabs account. */
+export const FREE_VOICES: VoiceOption[] = [
+  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel (F)' },
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam (M)' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni (M)' },
+  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh (M)' },
+  { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold (M)' },
+  { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam (M)' },
+]
 
-export function voiceForCharacter(characterId: string): string {
-  return ELEVEN_LABS_VOICES[characterId] ?? DEFAULT_VOICE_ID
+export const DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM' // Rachel
+
+/**
+ * Returns the voice ID for a given character, preferring any user override.
+ * Falls back to Rachel (the most reliable free-tier voice).
+ */
+export function voiceForCharacter(characterId: string, overrides?: Record<string, string>): string {
+  return overrides?.[characterId] ?? DEFAULT_VOICE_ID
 }
