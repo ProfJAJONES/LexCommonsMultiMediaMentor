@@ -45,6 +45,7 @@ export default function App() {
   const webcamStreamRef = useRef<MediaStream | null>(null)
   const practiceMessagesRef = useRef<Array<{ speaker: string; text: string; timestamp: number }>>([])
   const aiMessagesRef = useRef<ChatMessage[]>([])
+  const narrativeRef = useRef<string>('')
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null)
   const [currentTime, setCurrentTime] = useState(0)
   const [videoDimensions, setVideoDimensions] = useState({ w: 0, h: 0 })
@@ -300,22 +301,17 @@ export default function App() {
     if (videoRef.current) videoRef.current.srcObject = null
   }
 
-  function handleCloseSession() {
-    // Only prompt if there is actual session work to lose
-    const hasWork = ann.comments.length > 0 || ann.annotations.length > 0 || audio.pitchHistory.length > 0
-    if (hasWork) {
-      setShowCloseConfirm(true)
-    } else {
-      doClear()
-    }
-  }
-
-  // Sidebar "Close Project" — stops any active screen recording and packages
-  // the recording + session data into a zip with MP4, PDF, DOCX, and JSON.
+  // Unified close: always auto-saves report + narrative, then clears.
+  // Called from both the video toolbar "Close ×" and the sidebar "Close Project".
   async function handleCloseProject() {
     const isRecording = screen.recorderState === 'recording' || screen.recorderState === 'paused'
-    if (isRecording) {
-      const recording = await screen.stopAndGetBlob()
+    const recording = isRecording ? await screen.stopAndGetBlob() : null
+    const hasWork = ann.comments.length > 0 || ann.annotations.length > 0 ||
+      audio.pitchHistory.length > 0 || aiMessagesRef.current.length > 0 ||
+      practiceMessagesRef.current.length > 0 || narrativeRef.current.length > 0 ||
+      recording != null
+
+    if (hasWork) {
       const slug = (fileName || 'session').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')
       await window.api.saveProjectPackage(
         recording?.uint8 ?? null,
@@ -327,11 +323,13 @@ export default function App() {
         },
         slug
       )
-      doClear()
-      return
     }
-    // No active recording — fall through to the normal confirm dialog
-    handleCloseSession()
+    doClear()
+  }
+
+  // Legacy alias — kept so the confirm dialog buttons still work.
+  function handleCloseSession() {
+    handleCloseProject()
   }
 
   function doClear() {
@@ -349,6 +347,7 @@ export default function App() {
     setVideoEnded(false)
     practiceMessagesRef.current = []
     aiMessagesRef.current = []
+    narrativeRef.current = ''
   }
 
   async function handleWebcam() {
@@ -547,6 +546,11 @@ export default function App() {
     const hasFeedback = ann.comments.length > 0
     const hasAI = aiMessagesRef.current.length > 0
     const hasPractice = practiceMessagesRef.current.length > 0
+    const narrative = narrativeRef.current
+    const narrativeHtml = narrative
+      ? narrative.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>')
+      : ''
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
@@ -564,9 +568,11 @@ export default function App() {
 <h1>Session Report — ${fileName || 'Untitled'}</h1>
 <div class="meta">Exported ${new Date().toLocaleString()}${durationSec > 0 ? ` &middot; Duration: ${fmtTime(durationSec)}` : ''}</div>
 
+${narrativeHtml ? `<h2>AI Coaching Narrative</h2><div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px;font-size:14px;line-height:1.75;color:#1e293b">${narrativeHtml}</div>` : ''}
+
 ${hasFeedback ? `<h2>Feedback Notes</h2><table><thead><tr><th>Time</th><th>Tag</th><th>Author</th><th>Comment</th></tr></thead><tbody>${feedbackRows}</tbody></table>` : '<h2>Feedback Notes</h2><p class="empty">No feedback comments recorded.</p>'}
 
-${hasAI ? `<h2>AI Coaching Report</h2>${aiRows}` : ''}
+${hasAI ? `<h2>AI Coaching Conversation</h2>${aiRows}` : ''}
 
 ${hasPractice ? `<h2>Practice Session Transcript</h2>${practiceRows}` : ''}
 
@@ -1220,6 +1226,7 @@ ${ann.comments.length === 0
             pitchGraphImage={pitchGraphRef.current?.toDataURL() ?? null}
             decibelGraphImage={decibelGraphRef.current?.toDataURL() ?? null}
             onGenerateNarrative={ai.generateOnce}
+            onNarrativeChange={(n) => { narrativeRef.current = n }}
           />
         </main>
       )}

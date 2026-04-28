@@ -19,6 +19,7 @@ interface ReportPanelProps {
     systemPrompt: string,
     onToken: (t: string) => void
   ) => Promise<void>
+  onNarrativeChange?: (narrative: string) => void
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -586,7 +587,8 @@ export function ReportPanel({
   apiKey,
   pitchGraphImage,
   decibelGraphImage,
-  onGenerateNarrative
+  onGenerateNarrative,
+  onNarrativeChange
 }: ReportPanelProps) {
   const [narrative, setNarrative] = useState('')
   const [narrativeHtml, setNarrativeHtml] = useState('')
@@ -644,6 +646,11 @@ export function ReportPanel({
       editorRef.current.innerHTML = mdToHtml(narrative)
     }
   }, [narrative, isGenerating])
+
+  // Notify parent whenever the narrative text changes so it can be included in exports
+  useEffect(() => {
+    onNarrativeChange?.(narrative)
+  }, [narrative, onNarrativeChange])
 
   const stats = computeStats(pitchHistory, dbHistory, comments)
   const hasData = pitchHistory.length > 0 || dbHistory.length > 0 || comments.length > 0
