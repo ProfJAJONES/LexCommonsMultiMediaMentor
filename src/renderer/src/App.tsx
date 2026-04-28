@@ -1560,7 +1560,7 @@ ${ann.comments.length === 0
             position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden',
             flexShrink: 0,
             marginTop: 8,
-            height: mediaMode !== 'none' ? videoAreaHeight : undefined
+            height: videoAreaHeight
           }}
           onMouseEnter={handleResizeObserver}
         >
@@ -1675,7 +1675,7 @@ ${ann.comments.length === 0
               </div>
             </div>
           ) : (
-            <div style={styles.placeholder}>
+            <div style={{ ...styles.placeholder, height: '100%' }}>
               <div style={{ fontSize: 14, color: '#e2e8f0', marginBottom: 16, fontWeight: 500, letterSpacing: 0.2, textAlign: 'center', maxWidth: 520, lineHeight: 1.6 }}>
                 Record or import oral advocacy practice — get real-time pitch &amp; volume analysis, annotate video, and AI coaching
               </div>
@@ -2225,8 +2225,6 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    minHeight: 280,
     cursor: 'pointer',
     color: '#64748b',
     userSelect: 'none'
