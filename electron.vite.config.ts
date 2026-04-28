@@ -38,6 +38,7 @@ export default defineConfig({
               const proxy = new Proxy({}, handler)
               export default proxy
               export const Pose = undefined
+              export const Hands = undefined
               export const webgpu_util = proxy
               export const WebGPUBackend = undefined
             `
