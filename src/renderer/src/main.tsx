@@ -24,7 +24,7 @@ class ErrorBoundary extends React.Component<
           height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'monospace', padding: 40, gap: 16
         }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#f87171' }}>Something went wrong</div>
-          <div style={{ fontSize: 12, color: '#94a3b8', maxWidth: 600, wordBreak: 'break-word' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-faint)', maxWidth: 600, wordBreak: 'break-word' }}>
             {this.state.error.message}
           </div>
           <button

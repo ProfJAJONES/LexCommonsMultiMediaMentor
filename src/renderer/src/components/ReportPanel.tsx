@@ -742,7 +742,7 @@ ${comments.length > 0
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#0284c7' }}>Session Report</div>
-          <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>
             {fileName || 'No file loaded'}{durationSec > 0 ? ` · ${dur}` : ''}
           </div>
         </div>
@@ -778,7 +778,7 @@ ${comments.length > 0
 
       {/* Empty state */}
       {!hasData && (
-        <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: 28, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 28, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
           Import a video and play it to generate audio data, then add feedback comments to build the session report.
         </div>
       )}
@@ -814,7 +814,7 @@ ${comments.length > 0
             <div style={{ marginBottom: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 onClick={handleLoadComparison}
-                style={{ fontSize: 11, padding: '5px 12px', borderRadius: 5, border: '1px solid #bae6fd', background: '#f0f9ff', color: '#0284c7', cursor: 'pointer', fontWeight: 600 }}
+                style={{ fontSize: 11, padding: '5px 12px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-card)', color: '#0284c7', cursor: 'pointer', fontWeight: 600 }}
               >
                 {compareSession ? '↩ Load Different Session' : '+ Load Comparison Session'}
               </button>
@@ -830,7 +830,7 @@ ${comments.length > 0
             </div>
 
             {!compareSession && (
-              <div style={{ color: '#94a3b8', fontSize: 12, fontStyle: 'italic', padding: '8px 0' }}>
+              <div style={{ color: 'var(--text-faint)', fontSize: 12, fontStyle: 'italic', padding: '8px 0' }}>
                 Load a saved session JSON to compare pitch and volume side-by-side.
               </div>
             )}
@@ -848,7 +848,7 @@ ${comments.length > 0
                   }
                   return (
                     <div>
-                      <div style={{ fontSize: 11, color: '#475569', marginBottom: 6, fontWeight: 700 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 700 }}>
                         Current <span style={{ color: '#0284c7' }}>{fileName || 'Session'}</span> vs. <span style={{ color: '#7c3aed' }}>{compareSession.fileName}</span>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
@@ -860,11 +860,11 @@ ${comments.length > 0
                           { label: 'Dyn Range', cur: stats.dynamicRange, cmp: cs.dynamicRange, unit: ' dB' },
                           { label: 'Comments', cur: stats.commentCount, cmp: cs.commentCount, unit: '' },
                         ].map(({ label, cur, cmp, unit }) => (
-                          <div key={label} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 10px' }}>
-                            <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 }}>{label}</div>
+                          <div key={label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: 6, padding: '8px 10px' }}>
+                            <div style={{ fontSize: 9, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 }}>{label}</div>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 13, fontWeight: 700, color: '#0284c7' }}>{cur}{unit}</span>
-                              <span style={{ fontSize: 10, color: '#94a3b8' }}>vs {cmp}{unit}</span>
+                              <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>vs {cmp}{unit}</span>
                             </div>
                             <div style={{ marginTop: 2 }}>{diff(cur, cmp, unit)}</div>
                           </div>
@@ -877,7 +877,7 @@ ${comments.length > 0
                 {/* Overlaid pitch chart */}
                 {(pitchHistory.length > 0 || compareSession.pitchHistory.length > 0) && (
                   <div>
-                    <div style={{ fontSize: 11, color: '#475569', fontWeight: 600, marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 6 }}>
                       Pitch — <span style={{ color: '#0284c7' }}>{fileName || 'Current'}</span> vs <span style={{ color: '#7c3aed' }}>{compareSession.fileName}</span>
                     </div>
                     <div style={{ position: 'relative' }}>
@@ -897,7 +897,7 @@ ${comments.length > 0
                 {/* Overlaid volume chart */}
                 {(dbHistory.length > 0 || compareSession.dbHistory.length > 0) && (
                   <div>
-                    <div style={{ fontSize: 11, color: '#475569', fontWeight: 600, marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 6 }}>
                       Volume — <span style={{ color: '#0284c7' }}>{fileName || 'Current'}</span> vs <span style={{ color: '#7c3aed' }}>{compareSession.fileName}</span>
                     </div>
                     <div style={{ position: 'relative' }}>
@@ -947,12 +947,12 @@ ${comments.length > 0
                   const ss = String(Math.floor(c.timestamp % 60)).padStart(2, '0')
                   const color = TAG_COLORS[c.tag] ?? '#64748b'
                   return (
-                    <div key={c.id} style={{ background: '#f8fafc', borderLeft: `3px solid ${color}`, borderRadius: '0 6px 6px 0', padding: '8px 12px' }}>
+                    <div key={c.id} style={{ background: 'var(--bg-surface)', borderLeft: `3px solid ${color}`, borderRadius: '0 6px 6px 0', padding: '8px 12px' }}>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 3 }}>
                         <span style={{ color, fontWeight: 700, fontSize: 10, textTransform: 'uppercase' }}>{c.tag.replace('_', ' ')}</span>
                         <span style={{ color: '#0284c7', fontFamily: 'monospace', fontSize: 11 }}>{mm}:{ss}</span>
                       </div>
-                      <div style={{ color: '#1e293b', fontSize: 13 }}>{c.text}</div>
+                      <div style={{ color: 'var(--text-dark)', fontSize: 13 }}>{c.text}</div>
                     </div>
                   )
                 })}
@@ -971,7 +971,7 @@ ${comments.length > 0
                 onDoneEdit={() => { syncFromEditor(); setEditingNarrative(false) }}
               />
             ) : (
-              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '20px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '20px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
                 Click "✨ Generate AI Narrative" to get personalised coaching feedback.
               </div>
             )}
@@ -987,7 +987,7 @@ ${comments.length > 0
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, borderBottom: '1px solid #e0f2fe', paddingBottom: 4 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, borderBottom: '1px solid #e0f2fe', paddingBottom: 4 }}>
         {title}
       </div>
       {children}
@@ -997,9 +997,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function StatCard({ value, label }: { value: string; label: string }) {
   return (
-    <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '12px 8px', textAlign: 'center' }}>
+    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 8px', textAlign: 'center' }}>
       <div style={{ fontSize: 18, fontWeight: 700, color: '#0284c7' }}>{value}</div>
-      <div style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 2 }}>{label}</div>
+      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 2 }}>{label}</div>
     </div>
   )
 }
@@ -1052,7 +1052,7 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
           background: active ? '#e0f2fe' : 'transparent',
           border: `1px solid ${active ? '#7dd3fc' : '#e2e8f0'}`,
           borderRadius: 4,
-          color: '#334155',
+          color: 'var(--text-medium)',
           cursor: 'pointer',
           fontSize: 12,
           fontWeight: 600,
@@ -1069,7 +1069,7 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
       {/* Toolbar — always visible once there is content */}
       <div style={{
         display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center',
-        background: '#f8fafc', border: '1px solid #e2e8f0',
+        background: 'var(--bg-surface)', border: '1px solid var(--border-light)',
         borderRadius: '8px 8px 0 0', padding: '5px 8px',
         borderBottom: 'none'
       }}>
@@ -1082,14 +1082,14 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
         <div style={{ width: 1, height: 18, background: '#e2e8f0', margin: '0 3px' }} />
 
         {/* Highlight colors */}
-        <span style={{ fontSize: 10, color: '#94a3b8', alignSelf: 'center', marginRight: 1 }}>HL</span>
+        <span style={{ fontSize: 10, color: 'var(--text-faint)', alignSelf: 'center', marginRight: 1 }}>HL</span>
         {HIGHLIGHTS.map(h => (
           <button
             key={h.color}
             onMouseDown={e => { e.preventDefault(); editorRef.current?.focus(); document.execCommand('hiliteColor', false, h.color) }}
             title={`Highlight ${h.label}`}
             style={{
-              background: h.color, border: '1px solid #cbd5e1', borderRadius: 3,
+              background: h.color, border: '1px solid var(--border-medium)', borderRadius: 3,
               cursor: 'pointer', width: 18, height: 18, padding: 0,
             }}
           />
@@ -1098,8 +1098,8 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
           onMouseDown={e => { e.preventDefault(); editorRef.current?.focus(); document.execCommand('hiliteColor', false, 'transparent') }}
           title="Remove highlight"
           style={{
-            background: 'transparent', border: '1px solid #e2e8f0', borderRadius: 3,
-            color: '#94a3b8', cursor: 'pointer', fontSize: 10, padding: '1px 4px', lineHeight: 1.4
+            background: 'transparent', border: '1px solid var(--border-light)', borderRadius: 3,
+            color: 'var(--text-faint)', cursor: 'pointer', fontSize: 10, padding: '1px 4px', lineHeight: 1.4
           }}
         >✕</button>
 
@@ -1130,8 +1130,8 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
           onMouseDown={e => { e.preventDefault(); editorRef.current?.focus(); document.execCommand('removeFormat') }}
           title="Remove all formatting from selection"
           style={{
-            background: 'transparent', border: '1px solid #e2e8f0', borderRadius: 4,
-            color: '#64748b', cursor: 'pointer', fontSize: 10, padding: '3px 7px'
+            background: 'transparent', border: '1px solid var(--border-light)', borderRadius: 4,
+            color: 'var(--text-muted)', cursor: 'pointer', fontSize: 10, padding: '3px 7px'
           }}
         >Clear fmt</button>
 
@@ -1147,7 +1147,7 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
           ) : (
             <button
               onClick={onEnterEdit}
-              style={{ background: '#fff', border: '1px solid #bae6fd', borderRadius: 5, color: '#0284c7', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '4px 10px' }}
+              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 5, color: '#0284c7', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '4px 10px' }}
             >✎ Edit</button>
           )
         )}
@@ -1161,10 +1161,10 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
         onBlur={editingNarrative ? onDoneEdit : undefined}
         dangerouslySetInnerHTML={!editingNarrative ? { __html: html + (isGenerating ? '<span style="color:#0284c7">▌</span>' : '') } : undefined}
         style={{
-          background: '#f0f9ff',
-          border: '1px solid #bae6fd',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
           borderRadius: '0 0 8px 8px',
-          color: '#1e293b',
+          color: 'var(--text-dark)',
           fontSize: 13,
           lineHeight: 1.8,
           minHeight: 120,

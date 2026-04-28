@@ -114,15 +114,15 @@ export function CountdownTimer() {
   const urgent = remaining <= 30 && remaining > 0 && running
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px', marginBottom: 6 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', background: 'var(--bg-elevated)', border: '1px solid var(--border-light)', borderRadius: 8, padding: '7px 10px', marginBottom: 6 }}>
 
-      <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>Timer</span>
+      <span style={{ color: 'var(--text-faint)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>Timer</span>
 
       <select
         value={presetIdx}
         onChange={e => applyPreset(Number(e.target.value))}
         disabled={running}
-        style={{ border: '1px solid #cbd5e1', borderRadius: 4, color: '#334155', fontSize: 11, padding: '3px 4px', cursor: running ? 'default' : 'pointer', background: '#fff', opacity: running ? 0.5 : 1 }}
+        style={{ border: '1px solid var(--border-medium)', borderRadius: 4, color: 'var(--text-medium)', fontSize: 11, padding: '3px 4px', cursor: running ? 'default' : 'pointer', background: 'var(--bg-elevated)', opacity: running ? 0.5 : 1 }}
       >
         {PRESETS.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
       </select>
@@ -133,7 +133,7 @@ export function CountdownTimer() {
           <input type="number" min={0} max={99} value={customMin}
             onChange={e => { const v = Number(e.target.value); setCustomMin(v); applyCustom(v, customSec) }}
             style={numIn} />
-          <span style={{ color: '#475569', fontWeight: 700 }}>:</span>
+          <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>:</span>
           <input type="number" min={0} max={59} value={customSec}
             onChange={e => { const v = Math.min(59, Number(e.target.value)); setCustomSecState(v); applyCustom(customMin, v) }}
             style={numIn} />
@@ -158,7 +158,7 @@ export function CountdownTimer() {
         {running ? '⏸ Pause' : '▶ Start'}
       </button>
 
-      <button onClick={reset} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 5, color: '#64748b', cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '4px 9px' }}>
+      <button onClick={reset} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: 5, color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '4px 9px' }}>
         ↺
       </button>
 
@@ -168,7 +168,7 @@ export function CountdownTimer() {
 }
 
 const numIn: React.CSSProperties = {
-  width: 38, border: '1px solid #cbd5e1', borderRadius: 4,
-  color: '#0f172a', fontSize: 13, fontWeight: 700, textAlign: 'center',
-  padding: '2px 0', outline: 'none', background: '#fff'
+  width: 38, border: '1px solid var(--border-medium)', borderRadius: 4,
+  color: 'var(--text)', fontSize: 13, fontWeight: 700, textAlign: 'center',
+  padding: '2px 0', outline: 'none', background: 'var(--bg-elevated)'
 }

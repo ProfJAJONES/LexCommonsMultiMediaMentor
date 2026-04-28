@@ -14,7 +14,7 @@ export function SourcePicker({ sources, onSelect, onCancel }: PickerProps) {
     <div style={overlay}>
       <div style={modal}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 600, color: '#0f172a', margin: 0 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
             Choose what to record
           </h2>
           <button onClick={onCancel} style={closeBtn}>×</button>
@@ -25,7 +25,7 @@ export function SourcePicker({ sources, onSelect, onCancel }: PickerProps) {
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          background: '#f0f9ff',
+          background: 'var(--bg-card)',
           border: `1px solid ${withMic ? '#34d39966' : '#bae6fd'}`,
           borderRadius: 7,
           padding: '10px 14px',
@@ -51,15 +51,15 @@ export function SourcePicker({ sources, onSelect, onCancel }: PickerProps) {
               width: 14,
               height: 14,
               borderRadius: '50%',
-              background: '#fff',
+              background: 'var(--bg-elevated)',
               transition: 'left 0.15s'
             }} />
           </div>
           <div>
-            <div style={{ color: '#0f172a', fontSize: 13, fontWeight: 600 }}>
+            <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>
               🎙 Record with microphone audio
             </div>
-            <div style={{ color: '#64748b', fontSize: 11, marginTop: 2 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
               {withMic
                 ? 'Your microphone will be mixed into the recording — the professor\'s voice will be audible'
                 : 'Video only — no audio will be recorded'}
@@ -68,7 +68,7 @@ export function SourcePicker({ sources, onSelect, onCancel }: PickerProps) {
         </div>
 
         {sources.length === 0 ? (
-          <p style={{ color: '#64748b', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
             Loading sources…
           </p>
         ) : (
@@ -90,7 +90,7 @@ export function SourcePicker({ sources, onSelect, onCancel }: PickerProps) {
                     <img src={s.appIcon} alt="" style={{ width: 14, height: 14, flexShrink: 0 }} />
                   )}
                   <span style={{
-                    color: '#334155',
+                    color: 'var(--text-medium)',
                     fontSize: 11,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -135,7 +135,7 @@ export function RecordingIndicator({ elapsedSec, state, hasAudio, videoRef, onPa
       display: 'flex',
       alignItems: 'center',
       gap: 6,
-      background: '#f0f9ff',
+      background: 'var(--bg-card)',
       border: `1px solid ${state === 'paused' ? '#d97706' : '#bae6fd'}`,
       borderRadius: 6,
       padding: '5px 10px'
@@ -148,7 +148,7 @@ export function RecordingIndicator({ elapsedSec, state, hasAudio, videoRef, onPa
       }} />
 
       {/* Timer */}
-      <span style={{ color: '#334155', fontSize: 12, fontFamily: 'monospace', minWidth: 40 }}>
+      <span style={{ color: 'var(--text-medium)', fontSize: 12, fontFamily: 'monospace', minWidth: 40 }}>
         {state === 'saving' ? 'Saving…' : `${mm}:${ss}`}
       </span>
 
@@ -229,8 +229,8 @@ const overlay: React.CSSProperties = {
 }
 
 const modal: React.CSSProperties = {
-  background: '#f0f9ff',
-  border: '1px solid #bae6fd',
+  background: 'var(--bg-card)',
+  border: '1px solid var(--border)',
   borderRadius: 12,
   padding: 20,
   width: 680,
@@ -246,8 +246,8 @@ const grid: React.CSSProperties = {
 }
 
 const sourceCard: React.CSSProperties = {
-  background: '#ffffff',
-  border: '2px solid #bae6fd',
+  background: 'var(--bg-elevated)',
+  border: '2px solid var(--border)',
   borderRadius: 6,
   cursor: 'pointer',
   padding: 0,
@@ -258,7 +258,7 @@ const sourceCard: React.CSSProperties = {
 const closeBtn: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: '#64748b',
+  color: 'var(--text-muted)',
   cursor: 'pointer',
   fontSize: 22,
   lineHeight: 1,

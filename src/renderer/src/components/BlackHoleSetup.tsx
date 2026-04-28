@@ -64,19 +64,19 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
       zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center'
     }}>
       <div style={{
-        background: '#fff', borderRadius: 12, padding: 28, width: 520, maxWidth: '94vw',
+        background: 'var(--bg-elevated)', borderRadius: 12, padding: 28, width: 520, maxWidth: '94vw',
         boxShadow: '0 16px 48px rgba(0,0,0,0.3)', maxHeight: '90vh', overflowY: 'auto'
       }}>
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#0f172a' }}>System Audio Setup</div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>System Audio Setup</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
               Capture computer audio in screen recordings (macOS only)
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: 0 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: 0 }}>×</button>
         </div>
 
         {/* Status badge */}
@@ -89,7 +89,7 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
           <span style={{ fontSize: 16 }}>
             {status === 'installed' ? '✅' : status === 'checking' ? '⏳' : '⚠️'}
           </span>
-          <span style={{ fontSize: 12, color: '#334155' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-medium)' }}>
             {status === 'installed'
               ? 'BlackHole 2ch is installed on this Mac.'
               : status === 'checking'
@@ -98,7 +98,7 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
           </span>
           <button
             onClick={checkInstalled}
-            style={{ marginLeft: 'auto', background: 'none', border: '1px solid #cbd5e1', borderRadius: 5, color: '#475569', cursor: 'pointer', fontSize: 11, padding: '3px 9px' }}
+            style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--border-medium)', borderRadius: 5, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, padding: '3px 9px' }}
           >
             Recheck
           </button>
@@ -128,13 +128,13 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
         {/* Step 1 */}
         {step === 1 && (
           <div>
-            <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.6, marginTop: 0 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-medium)', lineHeight: 1.6, marginTop: 0 }}>
               BlackHole is a free, open-source virtual audio driver that routes your Mac's system audio into recordings. Without it, screen recordings will have microphone audio only — no computer audio.
             </p>
 
-            <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: 14, marginBottom: 16 }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 14, marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 12, color: '#0284c7', marginBottom: 6 }}>What the installer does</div>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#475569', lineHeight: 1.8 }}>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
                 <li>Installs a virtual audio device called "BlackHole 2ch"</li>
                 <li>Requires your admin password (standard macOS driver install)</li>
                 <li>You may need to log out and back in, or restart, for it to appear</li>
@@ -163,7 +163,7 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
               {status === 'not_installed' && (
                 <button
                   onClick={() => setStep(2)}
-                  style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 7, color: '#475569', cursor: 'pointer', fontSize: 12, padding: '9px 14px' }}
+                  style={{ background: '#f1f5f9', border: '1px solid var(--border-light)', borderRadius: 7, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, padding: '9px 14px' }}
                 >
                   Already installed →
                 </button>
@@ -171,7 +171,7 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
             </div>
 
             {status !== 'installed' && (
-              <p style={{ fontSize: 11, color: '#94a3b8', marginBottom: 0, marginTop: 10, textAlign: 'center' }}>
+              <p style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 0, marginTop: 10, textAlign: 'center' }}>
                 After the installer finishes, click Recheck above, then continue to Step 2.
               </p>
             )}
@@ -190,7 +190,7 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
         {/* Step 2 */}
         {step === 2 && (
           <div>
-            <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.6, marginTop: 0 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-medium)', lineHeight: 1.6, marginTop: 0 }}>
               To hear your speakers <em>and</em> capture system audio simultaneously, create a <strong>Multi-Output Device</strong> in Audio MIDI Setup that combines your speakers and BlackHole together.
             </p>
 
@@ -203,8 +203,8 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
                 { n: '5', text: 'Optionally rename it — e.g. "Speakers + BlackHole" — by double-clicking the name.' },
               ].map(({ n, text }) => (
                 <div key={n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <div style={{ ...pill(n, false), background: '#e0f2fe', color: '#0369a1' }}>{n}</div>
-                  <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.6 }}>{text}</div>
+                  <div style={{ ...pill(n, false), background: 'var(--bg)', color: '#0369a1' }}>{n}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-medium)', lineHeight: 1.6 }}>{text}</div>
                 </div>
               ))}
             </div>
@@ -217,7 +217,7 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
             </button>
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setStep(1)} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 7, color: '#475569', cursor: 'pointer', fontSize: 12, padding: '8px 14px' }}>← Back</button>
+              <button onClick={() => setStep(1)} style={{ background: '#f1f5f9', border: '1px solid var(--border-light)', borderRadius: 7, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, padding: '8px 14px' }}>← Back</button>
               <button onClick={() => setStep(3)} style={{ background: '#0284c7', border: 'none', borderRadius: 7, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: '8px 18px', flex: 1 }}>Done — Continue to Step 3 →</button>
             </div>
           </div>
@@ -226,7 +226,7 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
         {/* Step 3 */}
         {step === 3 && (
           <div>
-            <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.6, marginTop: 0 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-medium)', lineHeight: 1.6, marginTop: 0 }}>
               Everything is set up. Here's how to capture system audio in your next screen recording:
             </p>
 
@@ -236,11 +236,11 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
                 { n: '2', color: '#0284c7', text: 'Back in this app, click "⏺ Record Screen" and pick the window or screen you want to record.' },
                 { n: '3', color: '#0284c7', text: 'Enable the "Include mic" option in the recording picker if you also want your voice.' },
                 { n: '4', color: '#0284c7', text: 'When you stop and save the recording, system audio will be included in the file.' },
-                { n: '5', color: '#64748b', text: 'When done recording, remember to switch your Sound Output back to your regular speakers so audio doesn\'t keep routing through BlackHole.' },
+                { n: '5', color: 'var(--text-muted)', text: 'When done recording, remember to switch your Sound Output back to your regular speakers so audio doesn\'t keep routing through BlackHole.' },
               ].map(({ n, color, text }) => (
                 <div key={n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   <div style={{ ...pill(n, false), background: color === '#0284c7' ? '#e0f2fe' : '#f1f5f9', color }}>{n}</div>
-                  <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.6 }}>{text}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-medium)', lineHeight: 1.6 }}>{text}</div>
                 </div>
               ))}
             </div>
@@ -250,7 +250,7 @@ export function BlackHoleSetup({ onClose }: { onClose: () => void }) {
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setStep(2)} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 7, color: '#475569', cursor: 'pointer', fontSize: 12, padding: '8px 14px' }}>← Back</button>
+              <button onClick={() => setStep(2)} style={{ background: '#f1f5f9', border: '1px solid var(--border-light)', borderRadius: 7, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, padding: '8px 14px' }}>← Back</button>
               <button onClick={onClose} style={{ background: '#059669', border: 'none', borderRadius: 7, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: '8px 18px', flex: 1 }}>✓ Got it — close setup</button>
             </div>
           </div>

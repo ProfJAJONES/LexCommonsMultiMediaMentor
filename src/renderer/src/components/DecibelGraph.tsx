@@ -62,7 +62,7 @@ export const DecibelGraph = forwardRef<DecibelGraphHandle, Props>(function Decib
     ctx.scale(dpr, dpr)
 
     ctx.clearRect(0, 0, width, height)
-    ctx.fillStyle = '#f0f9ff'
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim() || '#f0f9ff'
     ctx.fillRect(0, 0, width, height)
 
     const graphL = GUTTER_L
@@ -102,7 +102,7 @@ export const DecibelGraph = forwardRef<DecibelGraphHandle, Props>(function Decib
 
     // ── dB labels (right gutter) ──────────────────────────────────────────────
     ctx.save()
-    ctx.fillStyle = '#475569'
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#475569'
     ctx.font = '11px monospace'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
@@ -144,7 +144,7 @@ export const DecibelGraph = forwardRef<DecibelGraphHandle, Props>(function Decib
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#475569', fontSize: 13 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
         <span style={{ fontWeight: 700 }}>VOLUME</span>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {isFinite(currentDb) && (
@@ -161,7 +161,7 @@ export const DecibelGraph = forwardRef<DecibelGraphHandle, Props>(function Decib
         </div>
       </div>
       <canvas ref={canvasRef} style={{ borderRadius: 6, display: 'block' }} />
-      <div style={{ fontSize: 10, color: '#94a3b8', textAlign: 'right', lineHeight: 1.4 }}>
+      <div style={{ fontSize: 10, color: 'var(--text-faint)', textAlign: 'right', lineHeight: 1.4 }}>
         dBFS = decibels relative to full scale &mdash; 0 is the loudest possible; lower numbers are quieter
       </div>
     </div>

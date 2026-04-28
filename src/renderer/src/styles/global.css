@@ -11,6 +11,39 @@
   font-style: normal;
 }
 
+/* ── Colour tokens ─────────────────────────────────────────────────────────── */
+:root {
+  --bg:              #e0f2fe;
+  --bg-card:         #f0f9ff;
+  --bg-surface:      #f8fafc;
+  --bg-elevated:     #ffffff;
+  --text:            #0f172a;
+  --text-dark:       #1e293b;
+  --text-medium:     #334155;
+  --text-secondary:  #475569;
+  --text-muted:      #64748b;
+  --text-faint:      #94a3b8;
+  --border:          #bae6fd;
+  --border-light:    #e2e8f0;
+  --border-medium:   #cbd5e1;
+}
+
+body.dark-mode {
+  --bg:              #0f172a;
+  --bg-card:         #1e293b;
+  --bg-surface:      #1e293b;
+  --bg-elevated:     #334155;
+  --text:            #f1f5f9;
+  --text-dark:       #e2e8f0;
+  --text-medium:     #cbd5e1;
+  --text-secondary:  #94a3b8;
+  --text-muted:      #64748b;
+  --text-faint:      #475569;
+  --border:          #334155;
+  --border-light:    #334155;
+  --border-medium:   #475569;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -24,8 +57,8 @@ html, body, #root {
 
 body {
   -webkit-font-smoothing: antialiased;
-  background: #e0f2fe;
-  color: #0f172a;
+  background: var(--bg);
+  color: var(--text);
   font-size: 14px;
 }
 
@@ -39,9 +72,6 @@ body.dyslexic-font * {
 }
 
 /* ── Window drag region ────────────────────────────────────────────────────── */
-/* The main toolbar is made draggable so the user can move the frameless       */
-/* window from it. All interactive elements inside opt out of drag so they     */
-/* remain clickable.                                                            */
 .app-toolbar {
   -webkit-app-region: drag;
 }
@@ -54,23 +84,19 @@ body.dyslexic-font * {
   -webkit-app-region: no-drag;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #e0f2fe;
-}
-::-webkit-scrollbar-thumb {
-  background: #bae6fd;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #7dd3fc;
-}
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-card); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-medium); }
 
 input, textarea, select {
   color-scheme: light;
+}
+body.dark-mode input,
+body.dark-mode textarea,
+body.dark-mode select {
+  color-scheme: dark;
 }
 
 button:disabled {

@@ -87,7 +87,7 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
     ctx.scale(dpr, dpr)
 
     ctx.clearRect(0, 0, width, height)
-    ctx.fillStyle = '#f0f9ff'
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim() || '#f0f9ff'
     ctx.fillRect(0, 0, width, height)
 
     const graphL = GUTTER_L
@@ -145,7 +145,7 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
     ctx.fillStyle = 'rgba(251,191,36,0.18)'
     ctx.fillRect(3, a4Top, staffRight - 3, a4Bot - a4Top)
 
-    ctx.fillStyle = '#64748b'
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#64748b'
     ctx.textAlign = 'center'
 
     // ── Treble clef 𝄞 ──────────────────────────────────────────────────────
@@ -277,7 +277,7 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#475569', fontSize: 13 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
         <span style={{ fontWeight: 700 }}>PITCH</span>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {currentPitch > 0 && (

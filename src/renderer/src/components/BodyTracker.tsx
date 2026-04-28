@@ -357,7 +357,7 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: '#475569', textTransform: 'uppercase' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
           {title}
         </span>
         <button
@@ -376,7 +376,7 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
 
       {/* Skeleton canvas */}
       <div style={{
-        position: 'relative', background: '#f8fafc', borderRadius: 8,
+        position: 'relative', background: 'var(--bg-surface)', borderRadius: 8,
         border: `1px solid ${borderColor}`, overflow: 'hidden', width, height
       }}>
         <canvas ref={canvasRef} width={width} height={height} style={{ display: 'block' }} />
@@ -384,7 +384,7 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
         {!enabled && !loading && (
           <div style={{
             position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 6, color: '#94a3b8'
+            alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--text-faint)'
           }}>
             <div style={{ fontSize: 36 }}>{signingMode ? '🤟' : '🕴'}</div>
             <div style={{ fontSize: 11, textAlign: 'center', maxWidth: 160 }}>
@@ -400,7 +400,7 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
             alignItems: 'center', justifyContent: 'center', gap: 8, color: accentColor
           }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>Loading models…</div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>first load may take ~15s</div>
+            <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>first load may take ~15s</div>
           </div>
         )}
         {error && (
@@ -414,7 +414,7 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
       {enabled && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 10, color: '#64748b' }}>{signingMode ? 'Signing energy' : 'Movement energy'}</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{signingMode ? 'Signing energy' : 'Movement energy'}</span>
             <span style={{ fontSize: 10, fontWeight: 700, color: energyColor }}>{energyLabel}</span>
           </div>
           <div style={{ background: '#e2e8f0', borderRadius: 4, height: 6, overflow: 'hidden' }}>
@@ -460,10 +460,10 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
       {enabled && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: '#f8fafc', borderRadius: 6, padding: '5px 8px', border: '1px solid #e2e8f0'
+          background: 'var(--bg-surface)', borderRadius: 6, padding: '5px 8px', border: '1px solid var(--border-light)'
         }}>
-          <span style={{ fontSize: 10, color: '#64748b' }}>{signingMode ? '🤨 NMM' : '😐 Expression'}</span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#334155' }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{signingMode ? '🤨 NMM' : '😐 Expression'}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-medium)' }}>
             {expression ?? (apiKey?.trim() ? '—' : 'Add API key to enable')}
           </span>
         </div>

@@ -20,12 +20,12 @@ export function Metronome() {
       <span style={label}>Metronome</span>
 
       {/* Time signature */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: '1px solid #cbd5e1', borderRadius: 5, overflow: 'hidden', userSelect: 'none' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: '1px solid var(--border-medium)', borderRadius: 5, overflow: 'hidden', userSelect: 'none' }}>
         {[
-          { val: numerator,   up: () => setNumerator(numerator + 1),   dn: () => setNumerator(numerator - 1),   color: '#0f172a' },
+          { val: numerator,   up: () => setNumerator(numerator + 1),   dn: () => setNumerator(numerator - 1),   color: 'var(--text)' },
           { val: denominator, up: () => setDenominator(DENOMINATORS[Math.min(DENOMINATORS.length-1, DENOMINATORS.indexOf(denominator)+1)]),
                               dn: () => setDenominator(DENOMINATORS[Math.max(0, DENOMINATORS.indexOf(denominator)-1)]),
-                              color: '#64748b' }
+                              color: 'var(--text-muted)' }
         ].map((row, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', borderTop: i > 0 ? '1px solid #e2e8f0' : undefined }}>
             <button onClick={row.dn} style={sigBtn}>−</button>
@@ -41,10 +41,10 @@ export function Metronome() {
         <input
           type="number" value={bpm} min={20} max={400}
           onChange={e => setBpm(Number(e.target.value))}
-          style={{ width: 48, border: '1px solid #cbd5e1', borderRadius: 4, color: '#0f172a', fontSize: 15, fontWeight: 700, textAlign: 'center', padding: '2px 0', outline: 'none', background: '#fff' }}
+          style={{ width: 48, border: '1px solid var(--border-medium)', borderRadius: 4, color: 'var(--text)', fontSize: 15, fontWeight: 700, textAlign: 'center', padding: '2px 0', outline: 'none', background: 'var(--bg-elevated)' }}
         />
         <button onClick={() => setBpm(bpm + 1)} style={adjBtn}>+</button>
-        <span style={{ color: '#94a3b8', fontSize: 9 }}>BPM</span>
+        <span style={{ color: 'var(--text-faint)', fontSize: 9 }}>BPM</span>
       </div>
 
       {/* Tap */}
@@ -85,7 +85,7 @@ export function Metronome() {
             <span style={{ color: '#0284c7', fontSize: 18, fontWeight: 800, fontVariantNumeric: 'tabular-nums', minWidth: 26, textAlign: 'right' }}>
               {currentBeat >= 0 ? currentBeat + 1 : '–'}
             </span>
-            <span style={{ color: '#94a3b8', fontSize: 11 }}>/{numerator}</span>
+            <span style={{ color: 'var(--text-faint)', fontSize: 11 }}>/{numerator}</span>
           </div>
         )
       )}
@@ -95,20 +95,20 @@ export function Metronome() {
 
 const wrap: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap',
-  background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+  background: 'var(--bg-elevated)', border: '1px solid var(--border-light)', borderRadius: 8,
   padding: '7px 10px', marginBottom: 6
 }
 const label: React.CSSProperties = {
-  color: '#94a3b8', fontSize: 10, fontWeight: 700,
+  color: 'var(--text-faint)', fontSize: 10, fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0
 }
 const sigBtn: React.CSSProperties = {
-  background: 'none', border: 'none', color: '#94a3b8',
+  background: 'none', border: 'none', color: 'var(--text-faint)',
   cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '1px 5px', lineHeight: 1
 }
 const adjBtn: React.CSSProperties = {
-  background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4,
-  color: '#475569', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+  background: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: 4,
+  color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: 700,
   padding: '1px 7px', lineHeight: 1.4
 }
 const pill: React.CSSProperties = {

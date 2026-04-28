@@ -143,7 +143,7 @@ export function PianoKeyboard({ hz, width = TOT }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 12 }}>
         <span>NOTE</span>
         <span style={{ color: '#38bdf8', fontFamily: 'monospace', fontWeight: 600 }}>
           {activeNote

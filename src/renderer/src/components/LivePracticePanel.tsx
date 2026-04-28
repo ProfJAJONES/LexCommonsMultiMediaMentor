@@ -561,7 +561,7 @@ ${rows}
       {/* ── Character selector (only before session starts) ─────── */}
       {!practice.sessionActive && (
         <div style={s.setupBox}>
-          <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
             Choose your audience
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -589,8 +589,8 @@ ${rows}
                       }}>✓</span>
                     )}
                     <div style={{ fontSize: 96, lineHeight: 1, marginBottom: 8 }}>{c.icon}</div>
-                    <div style={{ color: '#0f172a', fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</div>
-                    <div style={{ color: '#64748b', fontSize: 10, marginTop: 3, lineHeight: 1.35 }}>{c.description}</div>
+                    <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 3, lineHeight: 1.35 }}>{c.description}</div>
                   </button>
                   {/* Voice selector — one row per speaker (or one row for single-voice characters) */}
                   <div style={{
@@ -606,7 +606,7 @@ ${rows}
                         padding: '4px 8px',
                         borderTop: spIdx > 0 ? '1px solid #e2e8f0' : 'none'
                       }}>
-                        <span style={{ color: '#475569', fontSize: 10, minWidth: 0, flex: '0 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: 10, minWidth: 0, flex: '0 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           🔊 {c.speakers ? sp.label : '🔊'}
                         </span>
                         <select
@@ -616,7 +616,7 @@ ${rows}
                           onChange={e => elevenLabsKey
                             ? setVoiceForCharacter(sp.id, e.target.value)
                             : setKokoroVoiceForCharacter(sp.id, e.target.value)}
-                          style={{ flex: 1, fontSize: 10, padding: '2px 3px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', color: '#0f172a', cursor: 'pointer', minWidth: 0 }}
+                          style={{ flex: 1, fontSize: 10, padding: '2px 3px', borderRadius: 4, border: '1px solid var(--border-medium)', background: 'var(--bg-elevated)', color: 'var(--text)', cursor: 'pointer', minWidth: 0 }}
                         >
                           {elevenLabsKey
                             ? FREE_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
@@ -625,7 +625,7 @@ ${rows}
                         </select>
                       </div>
                     ))}
-                    <div style={{ padding: '2px 8px 4px', color: '#94a3b8', fontSize: 9 }}>
+                    <div style={{ padding: '2px 8px 4px', color: 'var(--text-faint)', fontSize: 9 }}>
                       {elevenLabsKey ? 'ElevenLabs · saved per speaker' : 'Kokoro · saved per speaker'}
                     </div>
                   </div>
@@ -636,8 +636,8 @@ ${rows}
 
           {/* Bench temperature selector — appellate panel and SCOTUS only */}
           {(character.id === 'appellate_panel' || character.id === 'supreme_court') && (
-            <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 7, border: '1px solid #e2e8f0' }}>
-              <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
+            <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--bg-surface)', borderRadius: 7, border: '1px solid var(--border-light)' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
                 Bench temperature
               </div>
               <div style={{ display: 'flex', gap: 5 }}>
@@ -662,7 +662,7 @@ ${rows}
                   </button>
                 ))}
               </div>
-              <div style={{ color: '#94a3b8', fontSize: 10, marginTop: 5 }}>
+              <div style={{ color: 'var(--text-faint)', fontSize: 10, marginTop: 5 }}>
                 {benchTemp === 'cold' ? 'Judges listen; one polite question per turn' : benchTemp === 'warm' ? 'Occasional focused questions, no interruptions' : 'Frequent interruptions, rapid hypotheticals, pile-ons'}
               </div>
             </div>
@@ -670,8 +670,8 @@ ${rows}
 
           {/* Kokoro model download progress — shown globally when loading */}
           {!elevenLabsKey && kokoroProgress.status === 'loading' && (
-            <div style={{ padding: '6px 10px', background: '#f8fafc', borderRadius: 7, border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 10, marginBottom: 2 }}>
+            <div style={{ padding: '6px 10px', background: 'var(--bg-surface)', borderRadius: 7, border: '1px solid var(--border-light)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 10, marginBottom: 2 }}>
                 <span>Downloading Kokoro voice model…</span>
                 <span>{kokoroProgress.pct}%</span>
               </div>
@@ -686,7 +686,7 @@ ${rows}
             </div>
           )}
           {!elevenLabsKey && kokoroProgress.status !== 'loading' && kokoroProgress.status !== 'error' && (
-            <div style={{ color: '#94a3b8', fontSize: 10, textAlign: 'center' }}>
+            <div style={{ color: 'var(--text-faint)', fontSize: 10, textAlign: 'center' }}>
               {kokoroProgress.status === 'ready' ? '🟢 Kokoro voice model ready' : 'Kokoro voices · ~82 MB download on first use'}
             </div>
           )}
@@ -743,7 +743,7 @@ ${rows}
                   />
                 ) : (
                   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ color: '#475569', fontSize: 11 }}>Camera off</span>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>Camera off</span>
                   </div>
                 )}
               </div>
@@ -754,8 +754,8 @@ ${rows}
                 {cameraStream ? '📷 On' : '📷 Off'}
               </button>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ color: '#64748b', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.3 }}>{character.icon}</div>
-                <div style={{ color: '#334155', fontSize: 9, fontWeight: 700, marginTop: 1 }}>{character.label}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.3 }}>{character.icon}</div>
+                <div style={{ color: 'var(--text-medium)', fontSize: 9, fontWeight: 700, marginTop: 1 }}>{character.label}</div>
               </div>
             </div>
           </div>
@@ -776,7 +776,7 @@ ${rows}
             {practice.isResponding && !practice.streamingText && (
               <div style={{ display: 'flex', gap: 5, alignItems: 'center', padding: '4px 0' }}>
                 <ThinkingDots />
-                <span style={{ color: '#64748b', fontSize: 10 }}>{character.label} is responding…</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{character.label} is responding…</span>
               </div>
             )}
             {isCoachAnalyzing && !coachNote && (
@@ -845,13 +845,13 @@ ${rows}
             const top3 = Object.entries(sessionStats.fillers.breakdown)
               .sort((a, b) => b[1] - a[1]).slice(0, 3)
             return (
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 9px', fontSize: 10, color: '#475569', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: 6, padding: '5px 9px', fontSize: 10, color: 'var(--text-secondary)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontWeight: 700, color: '#0284c7' }}>📊</span>
                 {avgWpm > 0 && <span><span style={{ fontWeight: 700 }}>{avgWpm}</span> WPM avg</span>}
                 {sessionStats.fillers.total > 0 && (
                   <span>
                     <span style={{ fontWeight: 700, color: '#dc2626' }}>{sessionStats.fillers.total}</span> filler{sessionStats.fillers.total !== 1 ? 's' : ''}
-                    {top3.length > 0 && <span style={{ color: '#94a3b8' }}>{' '}({top3.map(([k, v]) => `"${k}" ×${v}`).join(', ')})</span>}
+                    {top3.length > 0 && <span style={{ color: 'var(--text-faint)' }}>{' '}({top3.map(([k, v]) => `"${k}" ×${v}`).join(', ')})</span>}
                   </span>
                 )}
                 {sessionStats.fillers.total === 0 && avgWpm > 0 && <span style={{ color: '#34d399', fontWeight: 600 }}>No fillers detected</span>}
@@ -962,7 +962,7 @@ ${rows}
         const top3 = Object.entries(sessionStats.fillers.breakdown)
           .sort((a, b) => b[1] - a[1]).slice(0, 3)
         return (
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 9px', fontSize: 10, color: '#475569', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: 6, padding: '5px 9px', fontSize: 10, color: 'var(--text-secondary)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontWeight: 700, color: '#0284c7' }}>📊</span>
             {avgWpm > 0 && (
               <span><span style={{ fontWeight: 700 }}>{avgWpm}</span> WPM avg</span>
@@ -971,7 +971,7 @@ ${rows}
               <span>
                 <span style={{ fontWeight: 700, color: '#dc2626' }}>{sessionStats.fillers.total}</span> filler{sessionStats.fillers.total !== 1 ? 's' : ''}
                 {top3.length > 0 && (
-                  <span style={{ color: '#94a3b8' }}>
+                  <span style={{ color: 'var(--text-faint)' }}>
                     {' '}({top3.map(([k, v]) => `"${k}" ×${v}`).join(', ')})
                   </span>
                 )}
@@ -987,7 +987,7 @@ ${rows}
 
       {/* ── Idle state (after session ended) ───────────────────── */}
       {!practice.sessionActive && practice.messages.length === 0 && (
-        <div style={{ color: '#94a3b8', fontSize: 11, textAlign: 'center', padding: '16px 0', lineHeight: 1.6 }}>
+        <div style={{ color: 'var(--text-faint)', fontSize: 11, textAlign: 'center', padding: '16px 0', lineHeight: 1.6 }}>
           Practice your performance live in front of a simulated audience, panel, or opponent.
           <br />The AI responds in character — in real time.
         </div>
@@ -1092,7 +1092,7 @@ function PracticeMessageBubble({ message: m, character, isFirst, streaming }: {
           {streaming && <span style={{ color: color, animation: 'blink 1s step-end infinite' }}>▌</span>}
         </div>
         {isStudent && (msgWpm !== undefined || msgFillerCount !== undefined) && (
-          <div style={{ display: 'flex', gap: 6, fontSize: 9, color: '#94a3b8', marginTop: 1, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, fontSize: 9, color: 'var(--text-faint)', marginTop: 1, flexWrap: 'wrap' }}>
             {msgWpm !== undefined && msgWpm > 0 && (
               <span style={{ color: '#0284c7', fontWeight: 600 }}>⚡ {msgWpm} wpm</span>
             )}
@@ -1100,7 +1100,7 @@ function PracticeMessageBubble({ message: m, character, isFirst, streaming }: {
               <span style={{ color: '#f87171', fontWeight: 600 }}>
                 {msgFillerCount} filler{msgFillerCount !== 1 ? 's' : ''}
                 {msgFillerBreakdown && Object.keys(msgFillerBreakdown).length > 0 && (
-                  <span style={{ color: '#94a3b8', fontWeight: 400 }}>
+                  <span style={{ color: 'var(--text-faint)', fontWeight: 400 }}>
                     {' '}({Object.entries(msgFillerBreakdown).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, v]) => `"${k}" ×${v}`).join(', ')})
                   </span>
                 )}
@@ -1211,9 +1211,9 @@ const startBtn: React.CSSProperties = {
 const s: Record<string, React.CSSProperties> = {
   panel: { display: 'flex', flexDirection: 'column', gap: 8, height: '100%' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  title: { color: '#64748b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 },
-  setupBox: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: 12, display: 'flex', flexDirection: 'column', gap: 0 },
+  title: { color: 'var(--text-muted)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 },
+  setupBox: { background: 'var(--bg-surface)', border: '1px solid var(--border-light)', borderRadius: 9, padding: 12, display: 'flex', flexDirection: 'column', gap: 0 },
   chatArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 60, paddingRight: 2 },
   inputArea: { borderTop: '1px solid #e2e8f0', paddingTop: 8 },
-  textarea: { background: '#fff', border: '1px solid #bae6fd', borderRadius: 6, color: '#0f172a', fontSize: 12, fontFamily: 'inherit', outline: 'none', padding: '7px 10px', resize: 'none', width: '100%', boxSizing: 'border-box', transition: 'border-color 0.15s, box-shadow 0.15s' }
+  textarea: { background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none', padding: '7px 10px', resize: 'none', width: '100%', boxSizing: 'border-box', transition: 'border-color 0.15s, box-shadow 0.15s' }
 }

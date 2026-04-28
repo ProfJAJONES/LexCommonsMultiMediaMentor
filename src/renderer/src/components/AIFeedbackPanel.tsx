@@ -140,7 +140,7 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
 
       {/* ── Persistent analysis buttons (always visible when video loaded) ── */}
       {!isEmpty && (hasData || hasVideo) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingBottom: 6, borderBottom: '1px solid #bae6fd', marginBottom: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingBottom: 6, borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
           {hasVideo && !videoEnded && (
             <div style={{ background: '#fef9c3', border: '1px solid #fde68a', borderRadius: 6, color: '#92400e', fontSize: 10, fontWeight: 600, padding: '5px 10px', textAlign: 'center' }}>
               Watch the full recording before analyzing
@@ -221,7 +221,7 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
             <div style={s.thinkingDots}>
               <span /><span /><span />
             </div>
-            <span style={{ color: '#64748b', fontSize: 11 }}>AI Coach is thinking…</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>AI Coach is thinking…</span>
           </div>
         )}
 
@@ -230,8 +230,8 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
 
       {/* ── Frame strip ────────────────────────────────────────── */}
       {frames.length > 0 && (
-        <div style={{ borderTop: '1px solid #bae6fd', paddingTop: 6 }}>
-          <div style={{ color: '#64748b', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>
             Analyzed frames ({frames.length})
           </div>
           <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
@@ -241,7 +241,7 @@ Reference specific frames (Frame 1–${captured.length}) when noting patterns. P
                   src={f.dataUrl}
                   alt={`Frame ${i + 1}`}
                   title={`Frame ${i + 1} — ${fmtTime(f.t)}`}
-                  style={{ width: 56, height: 36, objectFit: 'cover', borderRadius: 3, display: 'block', border: '1px solid #bae6fd' }}
+                  style={{ width: 56, height: 36, objectFit: 'cover', borderRadius: 3, display: 'block', border: '1px solid var(--border)' }}
                 />
                 <div style={{
                   position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -332,10 +332,10 @@ function EmptyState({ role, domain, hasData, hasVideo, videoEnded, isExtracting,
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 8 }}>
       <div style={{ textAlign: 'center', padding: '12px 0 6px' }}>
         <div style={{ fontSize: 24, marginBottom: 6 }}>{cfg.icon}</div>
-        <div style={{ color: '#475569', fontSize: 12, fontWeight: 600 }}>
+        <div style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>
           {cfg.coachTitle} {role === 'professor' ? '— Instructor View' : '— Student View'}
         </div>
-        <div style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 4 }}>
           {role === 'professor'
             ? `Ask anything about this student's performance, or build the knowledge base with your ${cfg.label} materials.`
             : `Ask for feedback on your performance, tips for improvement, or how to excel in ${cfg.label}.`}
@@ -400,7 +400,7 @@ function EmptyState({ role, domain, hasData, hasVideo, videoEnded, isExtracting,
 
       {/* Quick prompt chips */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ color: '#64748b', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
           Or ask something specific:
         </span>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -409,10 +409,10 @@ function EmptyState({ role, domain, hasData, hasVideo, videoEnded, isExtracting,
               key={i}
               onClick={() => onQuickPrompt(p)}
               style={{
-                background: '#f0f9ff',
-                border: '1px solid #bae6fd',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
                 borderRadius: 5,
-                color: '#475569',
+                color: 'var(--text-secondary)',
                 cursor: 'pointer',
                 fontSize: 11,
                 padding: '5px 9px',
@@ -447,7 +447,7 @@ function ChatBubble({ message: m, role, streaming }: {
       gap: 3,
       marginBottom: 8
     }}>
-      <span style={{ color: '#64748b', fontSize: 10, paddingLeft: isUser ? 0 : 4, paddingRight: isUser ? 4 : 0 }}>
+      <span style={{ color: 'var(--text-muted)', fontSize: 10, paddingLeft: isUser ? 0 : 4, paddingRight: isUser ? 4 : 0 }}>
         {m.displayName ?? (isUser ? (role === 'professor' ? 'Professor' : 'Student') : 'AI Coach')}
       </span>
       <div style={{
@@ -486,7 +486,7 @@ function FormattedText({ text }: { text: string }) {
 
         const rendered = hasInlineBold
           ? parts.map((p, j) => /^\*\*.*\*\*$/.test(p)
-              ? <strong key={j} style={{ color: '#0f172a' }}>{p.replace(/\*\*/g, '')}</strong>
+              ? <strong key={j} style={{ color: 'var(--text)' }}>{p.replace(/\*\*/g, '')}</strong>
               : p)
           : line
 
@@ -609,7 +609,7 @@ function KnowledgeBaseManager({
     <div style={{ ...s.infoBox, gap: 8, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ color: '#0284c7', fontSize: 11, fontWeight: 700 }}>📚 Knowledge Base</span>
-        <span style={{ color: '#64748b', fontSize: 10 }}>Used as context in every AI response</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>Used as context in every AI response</span>
       </div>
 
       {/* Category filter */}
@@ -631,7 +631,7 @@ function KnowledgeBaseManager({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
         {visible.map(it => (
           <div key={it.id} style={{
-            background: '#f8fafc',
+            background: 'var(--bg-surface)',
             border: `1px solid ${CATEGORY_COLORS[it.category]}44`,
             borderLeft: `3px solid ${CATEGORY_COLORS[it.category]}`,
             borderRadius: 6,
@@ -653,7 +653,7 @@ function KnowledgeBaseManager({
                   <div
                     onClick={() => startEdit(it.id, 'title', it.title)}
                     title="Click to edit"
-                    style={{ color: '#1e293b', fontSize: 11, fontWeight: 700, cursor: 'text', marginBottom: 3 }}
+                    style={{ color: 'var(--text-dark)', fontSize: 11, fontWeight: 700, cursor: 'text', marginBottom: 3 }}
                   >
                     {it.title}
                   </div>
@@ -688,7 +688,7 @@ function KnowledgeBaseManager({
                   <div
                     onClick={() => startEdit(it.id, 'body', it.body)}
                     title="Click to edit"
-                    style={{ color: '#475569', fontSize: 10, lineHeight: 1.5, cursor: 'text', whiteSpace: 'pre-wrap' }}
+                    style={{ color: 'var(--text-secondary)', fontSize: 10, lineHeight: 1.5, cursor: 'text', whiteSpace: 'pre-wrap' }}
                   >
                     {it.body.length > 120 ? it.body.slice(0, 118) + '…' : it.body}
                   </div>
@@ -696,7 +696,7 @@ function KnowledgeBaseManager({
 
                 {/* Source file metadata (uploaded docs only) */}
                 {it.sourceFile && (
-                  <div style={{ marginTop: 4, color: '#64748b', fontSize: 9, fontStyle: 'italic' }}>
+                  <div style={{ marginTop: 4, color: 'var(--text-muted)', fontSize: 9, fontStyle: 'italic' }}>
                     📄 {it.sourceFile.name}
                     {it.sourceFile.pageCount ? ` · ${it.sourceFile.pageCount} pages` : ''}
                     {it.sourceFile.truncated ? ' · truncated' : ''}
@@ -706,7 +706,7 @@ function KnowledgeBaseManager({
                 {/* Judge tags row */}
                 {judges.length > 0 && (
                   <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
-                    <span style={{ color: '#64748b', fontSize: 9, fontWeight: 600 }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 9, fontWeight: 600 }}>
                       {(it.judgeIds && it.judgeIds.length > 0) ? 'Judges:' : 'All judges'}
                     </span>
                     {editJudgesId === it.id ? (
@@ -735,7 +735,7 @@ function KnowledgeBaseManager({
                 )}
               </div>
 
-              <button onClick={() => onRemove(it.id)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, flexShrink: 0, padding: '0 2px' }}>
+              <button onClick={() => onRemove(it.id)} style={{ background: 'transparent', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', fontSize: 14, flexShrink: 0, padding: '0 2px' }}>
                 ×
               </button>
             </div>
@@ -743,7 +743,7 @@ function KnowledgeBaseManager({
         ))}
 
         {visible.length === 0 && (
-          <p style={{ color: '#64748b', fontSize: 11, textAlign: 'center', margin: '4px 0' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, textAlign: 'center', margin: '4px 0' }}>
             No items in this category.
           </p>
         )}
@@ -781,10 +781,10 @@ function KnowledgeBaseManager({
           </button>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#f8fafc', borderRadius: 6, padding: 10, border: '1px solid #bae6fd' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-surface)', borderRadius: 6, padding: 10, border: '1px solid var(--border)' }}>
           {/* Source file pill (uploads only) */}
           {pendingSource && (
-            <div style={{ background: '#e0f2fe', border: '1px solid #7dd3fc', borderRadius: 4, color: '#0369a1', fontSize: 10, padding: '4px 8px' }}>
+            <div style={{ background: 'var(--bg)', border: '1px solid #7dd3fc', borderRadius: 4, color: '#0369a1', fontSize: 10, padding: '4px 8px' }}>
               📄 {pendingSource.name}
               {pendingSource.pageCount ? ` · ${pendingSource.pageCount} pages` : ''}
               {pendingSource.truncated ? ' · text truncated to fit prompt budget' : ''}
@@ -817,7 +817,7 @@ function KnowledgeBaseManager({
           {/* Per-judge tagging chips */}
           {judges.length > 0 && (
             <div>
-              <div style={{ color: '#64748b', fontSize: 10, fontWeight: 600, marginBottom: 4 }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, marginBottom: 4 }}>
                 Show this to{newJudgeIds.length === 0 ? ': all judges' : ':'}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -848,12 +848,12 @@ function KnowledgeBaseManager({
 function hdrBtn(bg: string): React.CSSProperties {
   const isActive = bg === '#1e3a5f'
   const resolvedBg = bg === '#1e293b' ? '#f1f5f9' : (isActive ? '#dbeafe' : bg)
-  return { background: resolvedBg, border: '1px solid #bae6fd', borderRadius: 5, color: isActive ? '#0284c7' : '#475569', cursor: 'pointer', fontSize: 13, padding: '3px 8px', lineHeight: 1 }
+  return { background: resolvedBg, border: '1px solid var(--border)', borderRadius: 5, color: isActive ? '#0284c7' : '#475569', cursor: 'pointer', fontSize: 13, padding: '3px 8px', lineHeight: 1 }
 }
 
 function smBtn(bg: string): React.CSSProperties {
   const darkNeutral = bg === '#1e293b' || bg === '#374151'
-  return { background: darkNeutral ? '#f1f5f9' : bg, border: '1px solid #bae6fd', borderRadius: 5, color: darkNeutral ? '#334155' : '#f1f5f9', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '4px 10px', whiteSpace: 'nowrap' }
+  return { background: darkNeutral ? '#f1f5f9' : bg, border: '1px solid var(--border)', borderRadius: 5, color: darkNeutral ? '#334155' : '#f1f5f9', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '4px 10px', whiteSpace: 'nowrap' }
 }
 
 function catBtn(active: boolean, color: string): React.CSSProperties {
@@ -877,12 +877,12 @@ function chipBtn(active: boolean): React.CSSProperties {
 const s: Record<string, React.CSSProperties> = {
   panel: { display: 'flex', flexDirection: 'column', gap: 8, height: '100%' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
-  title: { color: '#64748b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 },
-  infoBox: { background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 7, padding: 10 },
+  title: { color: 'var(--text-muted)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 },
+  infoBox: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 7, padding: 10 },
   chatArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 80, paddingRight: 2 },
   errorBox: { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 5, color: '#dc2626', fontSize: 11, padding: '6px 10px' },
-  inputArea: { borderTop: '1px solid #bae6fd', paddingTop: 8 },
-  textarea: { background: '#ffffff', border: '1px solid #bae6fd', borderRadius: 6, color: '#0f172a', fontSize: 12, outline: 'none', padding: '8px 10px', resize: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' },
-  keyInput: { background: '#ffffff', border: '1px solid #bae6fd', borderRadius: 5, color: '#0f172a', fontSize: 11, padding: '5px 8px', fontFamily: 'monospace', outline: 'none', width: '100%', boxSizing: 'border-box' },
+  inputArea: { borderTop: '1px solid var(--border)', paddingTop: 8 },
+  textarea: { background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, outline: 'none', padding: '8px 10px', resize: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' },
+  keyInput: { background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text)', fontSize: 11, padding: '5px 8px', fontFamily: 'monospace', outline: 'none', width: '100%', boxSizing: 'border-box' },
   thinkingDots: { display: 'flex', gap: 3 },
 }

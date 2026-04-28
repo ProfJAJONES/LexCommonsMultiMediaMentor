@@ -189,10 +189,10 @@ export function FeedbackPanel({ comments, currentTime, domain, onAdd, onDelete, 
                 position: 'absolute',
                 top: 6,
                 right: 6,
-                background: '#f0f9ff',
-                border: '1px solid #bae6fd',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
                 borderRadius: 4,
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 fontSize: 13,
                 lineHeight: 1,
@@ -206,8 +206,8 @@ export function FeedbackPanel({ comments, currentTime, domain, onAdd, onDelete, 
 
         {/* Voice note recorder */}
         <div style={{
-          background: '#f0f9ff',
-          border: '1px solid #bae6fd',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
           borderRadius: 6,
           padding: '7px 10px',
           display: 'flex',
@@ -228,7 +228,7 @@ export function FeedbackPanel({ comments, currentTime, domain, onAdd, onDelete, 
           {rec.recState === 'recording' && (
             <>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f87171', animation: 'pulse 1s infinite', flexShrink: 0, display: 'inline-block' }} />
-              <span style={{ color: '#334155', fontSize: 12, fontFamily: 'monospace', minWidth: 34 }}>{mm}:{ss}</span>
+              <span style={{ color: 'var(--text-medium)', fontSize: 12, fontFamily: 'monospace', minWidth: 34 }}>{mm}:{ss}</span>
               <button type="button" onClick={handleStopRecording} style={smBtn('#7f1d1d')}>■ Stop</button>
             </>
           )}
@@ -262,9 +262,9 @@ export function FeedbackPanel({ comments, currentTime, domain, onAdd, onDelete, 
         onClick={() => setShowLibrary(v => !v)}
         style={{
           background: 'transparent',
-          border: '1px solid #bae6fd',
+          border: '1px solid var(--border)',
           borderRadius: 6,
-          color: '#64748b',
+          color: 'var(--text-muted)',
           cursor: 'pointer',
           fontSize: 11,
           fontWeight: 600,
@@ -291,7 +291,7 @@ export function FeedbackPanel({ comments, currentTime, domain, onAdd, onDelete, 
       {/* ── Comment list ─────────────────────────────────────────── */}
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {comments.length === 0 && (
-          <p style={{ color: '#64748b', fontSize: 13, textAlign: 'center', margin: '16px 0' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', margin: '16px 0' }}>
             No feedback yet. Play the video and add comments at specific timestamps.
           </p>
         )}
@@ -321,8 +321,8 @@ function QuickChips({
   if (chips.length === 0 && chipView === 'tag') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ color: '#64748b', fontSize: 11 }}>No quick comments for this category yet —</span>
-        <button type="button" onClick={onToggleView} style={{ ...smBtn('transparent'), color: '#64748b', border: 'none', padding: '2px 0' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>No quick comments for this category yet —</span>
+        <button type="button" onClick={onToggleView} style={{ ...smBtn('transparent'), color: 'var(--text-muted)', border: 'none', padding: '2px 0' }}>
           show all
         </button>
       </div>
@@ -332,10 +332,10 @@ function QuickChips({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#475569', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+        <span style={{ color: 'var(--text-secondary)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
           Quick comments {chipView === 'all' ? '— all categories' : `— ${currentTag.replace('_', ' ')}`}
         </span>
-        <button type="button" onClick={onToggleView} style={{ ...smBtn('transparent'), color: '#64748b', border: 'none', fontSize: 10, padding: '1px 0' }}>
+        <button type="button" onClick={onToggleView} style={{ ...smBtn('transparent'), color: 'var(--text-muted)', border: 'none', fontSize: 10, padding: '1px 0' }}>
           {chipView === 'tag' ? 'show all' : 'show current'}
         </button>
       </div>
@@ -415,8 +415,8 @@ function TemplateLibrary({
 
   return (
     <div style={{
-      background: '#f0f9ff',
-      border: '1px solid #bae6fd',
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border)',
       borderRadius: 8,
       padding: '10px 12px',
       display: 'flex',
@@ -471,7 +471,7 @@ function TemplateLibrary({
               alignItems: 'flex-start',
               gap: 6,
               padding: '5px 0',
-              borderBottom: '1px solid #bae6fd'
+              borderBottom: '1px solid var(--border)'
             }}>
               {editingId === t.id ? (
                 <textarea
@@ -484,7 +484,7 @@ function TemplateLibrary({
                   style={{ ...inputStyle, flex: 1, fontSize: 11, padding: '4px 7px', resize: 'none' }}
                 />
               ) : (
-                <span style={{ flex: 1, color: '#334155', fontSize: 11, lineHeight: 1.5 }}>
+                <span style={{ flex: 1, color: 'var(--text-medium)', fontSize: 11, lineHeight: 1.5 }}>
                   {t.text}
                 </span>
               )}
@@ -520,7 +520,7 @@ function TemplateLibrary({
       ))}
 
       {visible.length === 0 && (
-        <p style={{ color: '#64748b', fontSize: 12, textAlign: 'center', margin: '8px 0' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', margin: '8px 0' }}>
           No templates in this category.
         </p>
       )}
@@ -542,13 +542,13 @@ function CommentCard({
   onSeek?: (t: number) => void
 }) {
   return (
-    <div style={{ background: '#ffffff', borderRadius: 8, padding: '10px 12px', border: '1px solid #bae6fd', borderLeft: `3px solid ${TAG_COLORS[c.tag]}` }}>
+    <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)', borderLeft: `3px solid ${TAG_COLORS[c.tag]}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={() => onSeek?.(c.timestamp)}
             style={{
-              background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 4,
+              background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4,
               color: '#0284c7', cursor: 'pointer', fontSize: 11, fontFamily: 'monospace', padding: '1px 6px'
             }}
           >
@@ -561,21 +561,21 @@ function CommentCard({
           }}>
             {DOMAIN_CONFIG[domain].tagLabels[c.tag]}
           </span>
-          <span style={{ color: '#64748b', fontSize: 11 }}>{c.author}</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{c.author}</span>
         </div>
         <button
           onClick={() => onDelete(c.id)}
-          style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0, flexShrink: 0 }}
+          style={{ background: 'transparent', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0, flexShrink: 0 }}
         >
           ×
         </button>
       </div>
       {c.text && c.text !== '🎙 Voice note' && (
-        <p style={{ color: '#1e293b', fontSize: 13, margin: 0, lineHeight: 1.5 }}>{c.text}</p>
+        <p style={{ color: 'var(--text-dark)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>{c.text}</p>
       )}
       {c.voiceNote && (
         <div style={{ marginTop: c.text && c.text !== '🎙 Voice note' ? 8 : 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ color: '#64748b', fontSize: 10 }}>🎙</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>🎙</span>
           <audio src={c.voiceNote} controls style={{ height: 28, flex: 1 }} />
         </div>
       )}
@@ -589,7 +589,7 @@ function smBtn(bg: string): React.CSSProperties {
   const darkNeutral = bg === '#374151' || bg === '#1e293b'
   return {
     background: darkNeutral ? '#f1f5f9' : bg,
-    border: '1px solid #bae6fd',
+    border: '1px solid var(--border)',
     borderRadius: 5,
     color: (darkNeutral || bg === 'transparent') ? '#475569' : '#f1f5f9',
     cursor: 'pointer',
@@ -629,10 +629,10 @@ function iconBtn(bg: string, color: string): React.CSSProperties {
 }
 
 const inputStyle: React.CSSProperties = {
-  background: '#ffffff',
-  border: '1px solid #bae6fd',
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
-  color: '#0f172a',
+  color: 'var(--text)',
   flex: 1,
   fontSize: 13,
   outline: 'none',

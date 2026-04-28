@@ -147,7 +147,7 @@ export function CameraPanel({
             </>
           )}
           {cameraState === 'saving' && (
-            <span style={{ color: '#64748b', fontSize: 12 }}>Saving…</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Saving…</span>
           )}
         </div>
       )}
@@ -159,7 +159,7 @@ function btn(bg: string): React.CSSProperties {
   const darkNeutral = bg === '#374151' || bg === '#1e293b'
   return {
     background: darkNeutral ? '#f1f5f9' : bg,
-    border: '1px solid #bae6fd',
+    border: '1px solid var(--border)',
     borderRadius: 5,
     color: darkNeutral ? '#334155' : '#f1f5f9',
     cursor: 'pointer',
@@ -175,8 +175,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
-    background: '#f0f9ff',
-    border: '1px solid #bae6fd',
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
     borderRadius: 8,
     padding: 12
   },
@@ -186,7 +186,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center'
   },
   title: {
-    color: '#64748b',
+    color: 'var(--text-muted)',
     fontSize: 12,
     fontWeight: 600,
     textTransform: 'uppercase',
@@ -205,10 +205,10 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     minWidth: 0,
     maxWidth: 200,
-    background: '#ffffff',
-    border: '1px solid #bae6fd',
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border)',
     borderRadius: 5,
-    color: '#0f172a',
+    color: 'var(--text)',
     fontSize: 11,
     padding: '5px 8px',
     overflow: 'hidden',

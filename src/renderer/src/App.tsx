@@ -86,6 +86,7 @@ export default function App() {
     return !localStorage.getItem(`mm_ai_key_${p}`) && !localStorage.getItem('mm_ai_key') && !localStorage.getItem('anthropic_api_key')
   })
   const [dyslexicFont, setDyslexicFont] = useState(false)
+  const [darkMode, setDarkMode] = useState(false)
   const audioPickerBtnRef = useRef<HTMLButtonElement>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLDivElement>(null)
@@ -290,10 +291,13 @@ export default function App() {
     if (ai.apiKey) setShowSettingsDrawer(false)
   }, [ai.apiKey])
 
-  // Load dyslexic font preference on mount
+  // Load accessibility preferences on mount
   useEffect(() => {
     window.api.storeGet('dyslexicFont').then(v => {
       if (v === 'true') { setDyslexicFont(true); document.body.classList.add('dyslexic-font') }
+    })
+    window.api.storeGet('darkMode').then(v => {
+      if (v === 'true') { setDarkMode(true); document.body.classList.add('dark-mode') }
     })
   }, [])
 
@@ -303,6 +307,16 @@ export default function App() {
       if (next) document.body.classList.add('dyslexic-font')
       else document.body.classList.remove('dyslexic-font')
       window.api.storeSet('dyslexicFont', next ? 'true' : 'false')
+      return next
+    })
+  }
+
+  function toggleDarkMode() {
+    setDarkMode(prev => {
+      const next = !prev
+      if (next) document.body.classList.add('dark-mode')
+      else document.body.classList.remove('dark-mode')
+      window.api.storeSet('darkMode', next ? 'true' : 'false')
       return next
     })
   }
@@ -844,12 +858,12 @@ ${ann.comments.length === 0
       {/* Close session confirmation modal */}
       {showCloseConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 10, padding: 28, maxWidth: 440, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>Save before closing?</div>
-            <div style={{ fontSize: 13, color: '#475569', marginBottom: 6, lineHeight: 1.5 }}>
+          <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 28, maxWidth: 440, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-dark)', marginBottom: 8 }}>Save before closing?</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, lineHeight: 1.5 }}>
               Your session includes:
             </div>
-            <ul style={{ fontSize: 12, color: '#475569', margin: '0 0 16px 0', paddingLeft: 18, lineHeight: 1.8 }}>
+            <ul style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px 0', paddingLeft: 18, lineHeight: 1.8 }}>
               {ann.comments.length > 0 && <li><strong>{ann.comments.length}</strong> feedback comment{ann.comments.length !== 1 ? 's' : ''}</li>}
               {ann.annotations.length > 0 && <li><strong>{ann.annotations.length}</strong> video annotation{ann.annotations.length !== 1 ? 's' : ''}</li>}
               {aiMessagesRef.current.length > 0 && <li>AI coaching conversation ({aiMessagesRef.current.length} messages)</li>}
@@ -905,7 +919,7 @@ ${ann.comments.length === 0
         <DomainBar domain={domain} onSelect={setDomain} />
 
         {/* Export / Import Notes */}
-        <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid #bae6fd', background: '#f0f9ff' }}>
+        <div style={{ display: 'flex', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
           {/* Export dropdown */}
           <div ref={exportBtnRef} style={{ flex: 1, position: 'relative' }}>
             <button
@@ -922,8 +936,8 @@ ${ann.comments.length === 0
                 top: '100%',
                 left: 0,
                 zIndex: 200,
-                background: '#fff',
-                border: '1px solid #bae6fd',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
                 borderRadius: 7,
                 boxShadow: '0 4px 16px rgba(0,0,0,0.13)',
                 marginTop: 3,
@@ -945,7 +959,7 @@ ${ann.comments.length === 0
                       background: 'transparent',
                       border: 'none',
                       borderBottom: '1px solid #f0f9ff',
-                      color: '#1e293b',
+                      color: 'var(--text-dark)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -960,7 +974,7 @@ ${ann.comments.length === 0
                     <span style={{ fontSize: 13, fontFamily: 'monospace', width: 16, textAlign: 'center', flexShrink: 0 }}>{icon}</span>
                     <span style={{ flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 600 }}>{label}</div>
-                      <div style={{ fontSize: 10, color: '#64748b' }}>{sub}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{sub}</div>
                     </span>
                   </button>
                 ))}
@@ -972,7 +986,7 @@ ${ann.comments.length === 0
 
         {/* Annotated video export — only shown when a file session is active */}
         {fileName && mediaMode === 'file' && mediaPath && (
-          <div style={{ padding: '6px 10px', borderBottom: '1px solid #bae6fd', background: '#f0fdf4' }}>
+          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', background: '#f0fdf4' }}>
             <button
               onClick={handleExportAnnotatedVideo}
               disabled={isExportingVideo}
@@ -991,7 +1005,7 @@ ${ann.comments.length === 0
 
         {/* Close Project button — only shown when a session is active */}
         {fileName && (
-          <div style={{ padding: '6px 10px', borderBottom: '1px solid #bae6fd', background: '#fff7ed' }}>
+          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', background: '#fff7ed' }}>
             <button
               onClick={handleCloseProject}
               title={
@@ -1105,32 +1119,32 @@ ${ann.comments.length === 0
             <div style={{ padding: '4px 0' }}>
               {fileName ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 12, wordBreak: 'break-all', lineHeight: 1.4 }}>{fileName}</div>
+                  <div style={{ fontWeight: 600, color: 'var(--text-dark)', fontSize: 12, wordBreak: 'break-all', lineHeight: 1.4 }}>{fileName}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    <div style={{ background: '#f0f9ff', borderRadius: 7, padding: '8px 10px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                    <div style={{ background: 'var(--bg-card)', borderRadius: 7, padding: '8px 10px', border: '1px solid var(--border)', textAlign: 'center' }}>
                       <div style={{ fontWeight: 700, color: '#0284c7', fontSize: 20, lineHeight: 1 }}>{ann.comments.length}</div>
-                      <div style={{ color: '#475569', fontSize: 12, marginTop: 2 }}>feedback items</div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>feedback items</div>
                     </div>
                     <div style={{ background: '#f0fdf4', borderRadius: 7, padding: '8px 10px', border: '1px solid #86efac', textAlign: 'center' }}>
                       <div style={{ fontWeight: 700, color: '#16a34a', fontSize: 20, lineHeight: 1 }}>
                         {durationSec >= 60 ? `${Math.floor(durationSec / 60)}m` : `${Math.round(durationSec)}s`}
                       </div>
-                      <div style={{ color: '#475569', fontSize: 12, marginTop: 2 }}>duration</div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>duration</div>
                     </div>
                   </div>
                   <div style={{ background: '#faf5ff', borderRadius: 7, padding: '8px 10px', border: '1px solid #e9d5ff', textAlign: 'center' }}>
                     <div style={{ fontWeight: 700, color: '#7c3aed', fontSize: 20, lineHeight: 1 }}>{audio.pitchHistory.length}</div>
-                    <div style={{ color: '#475569', fontSize: 12, marginTop: 2 }}>pitch samples</div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>pitch samples</div>
                   </div>
                   {ann.annotations.length > 0 && (
                     <div style={{ background: '#fff7ed', borderRadius: 7, padding: '8px 10px', border: '1px solid #fed7aa', textAlign: 'center' }}>
                       <div style={{ fontWeight: 700, color: '#ea580c', fontSize: 20, lineHeight: 1 }}>{ann.annotations.length}</div>
-                      <div style={{ color: '#475569', fontSize: 12, marginTop: 2 }}>annotations</div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>annotations</div>
                     </div>
                   )}
                 </div>
               ) : (
-                <p style={{ color: '#475569', fontSize: 13, textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
                   Import a file or start a webcam session, then return here for the full report.
                 </p>
               )}
@@ -1144,7 +1158,7 @@ ${ann.comments.length === 0
           <button
             onClick={() => setShowSettingsDrawer(v => !v)}
             style={{
-              width: '100%', border: 'none', background: '#e0f2fe',
+              width: '100%', border: 'none', background: 'var(--bg)',
               color: '#0369a1', cursor: 'pointer', display: 'flex',
               alignItems: 'center', justifyContent: 'space-between',
               padding: '8px 14px', fontSize: 12, fontWeight: 700
@@ -1162,11 +1176,63 @@ ${ann.comments.length === 0
 
           {/* Drawer content */}
           {showSettingsDrawer && (
-            <div style={{ background: '#f8fafc', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', maxHeight: '60vh' }}>
+            <div style={{ background: 'var(--bg-surface)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', maxHeight: '60vh' }}>
+
+              {/* Accessibility */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>Accessibility</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* Dark mode */}
+                  <button
+                    onClick={toggleDarkMode}
+                    style={{
+                      width: '100%', border: `1.5px solid ${darkMode ? '#0284c7' : 'var(--border-light)'}`,
+                      borderRadius: 7, background: darkMode ? '#0c4a6e' : 'var(--bg-elevated)',
+                      color: darkMode ? '#e0f2fe' : 'var(--text-secondary)',
+                      cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      padding: '7px 12px', textAlign: 'left', display: 'flex',
+                      alignItems: 'center', justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>🌙 Dark mode</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, borderRadius: 10, padding: '2px 8px',
+                      background: darkMode ? '#0369a1' : 'var(--bg-card)',
+                      color: darkMode ? '#e0f2fe' : 'var(--text-muted)',
+                      border: `1px solid ${darkMode ? '#0284c7' : 'var(--border-light)'}`
+                    }}>
+                      {darkMode ? 'On' : 'Off'}
+                    </span>
+                  </button>
+                  {/* OpenDyslexic font */}
+                  <button
+                    onClick={toggleDyslexicFont}
+                    title={dyslexicFont ? 'Switch to standard font' : 'Switch to OpenDyslexic font'}
+                    style={{
+                      width: '100%', border: `1.5px solid ${dyslexicFont ? '#0284c7' : 'var(--border-light)'}`,
+                      borderRadius: 7, background: dyslexicFont ? '#eff6ff' : 'var(--bg-elevated)',
+                      color: dyslexicFont ? '#0369a1' : 'var(--text-secondary)',
+                      cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      padding: '7px 12px', textAlign: 'left', display: 'flex',
+                      alignItems: 'center', justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>Aa OpenDyslexic font</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, borderRadius: 10, padding: '2px 8px',
+                      background: dyslexicFont ? '#e0f2fe' : 'var(--bg-card)',
+                      color: dyslexicFont ? '#0369a1' : 'var(--text-muted)',
+                      border: `1px solid ${dyslexicFont ? '#7dd3fc' : 'var(--border-light)'}`
+                    }}>
+                      {dyslexicFont ? 'On' : 'Off'}
+                    </span>
+                  </button>
+                </div>
+              </div>
 
               {/* Provider selector */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>AI Provider</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>AI Provider</div>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {(['anthropic', 'openai', 'gemini'] as const).map(p => {
                     const cfg = PROVIDER_CONFIG[p]
@@ -1189,7 +1255,7 @@ ${ann.comments.length === 0
 
               {/* API Key */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>
                   {PROVIDER_CONFIG[ai.provider].label} API Key
                 </div>
                 <SidebarKeyInput
@@ -1201,17 +1267,17 @@ ${ann.comments.length === 0
 
               {/* ElevenLabs Key — optional, used for higher-quality voices in Practice */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>ElevenLabs Key</span>
-                  <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: '#64748b', fontSize: 11 }}>optional · practice voices</span>
+                  <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: 'var(--text-muted)', fontSize: 11 }}>optional · practice voices</span>
                 </div>
                 <ElevenLabsKeyInput apiKey={ai.elevenLabsKey} onSave={ai.saveElevenLabsKey} />
               </div>
 
               {/* Role */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>Role</div>
-                <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>Role</div>
+                <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-light)' }}>
                   {(['professor', 'student'] as const).map(r => (
                     <button key={r} onClick={() => ai.saveRole(r)} style={{
                       flex: 1, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
@@ -1227,7 +1293,7 @@ ${ann.comments.length === 0
 
               {/* Knowledge Scope */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>Knowledge Scope</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>Knowledge Scope</div>
                 <input
                   type="range" min={1} max={5} step={1}
                   value={ai.knowledgeScope}
@@ -1245,33 +1311,6 @@ ${ann.comments.length === 0
                 <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 8px', fontSize: 12, color: '#1e40af', lineHeight: 1.4 }}>
                   <strong>{SCOPE_LABELS[ai.knowledgeScope].icon} {SCOPE_LABELS[ai.knowledgeScope].label}</strong> — {SCOPE_LABELS[ai.knowledgeScope].description}
                 </div>
-              </div>
-
-              {/* Accessibility — OpenDyslexic font toggle */}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>Accessibility</div>
-                <button
-                  onClick={toggleDyslexicFont}
-                  title={dyslexicFont ? 'Switch to standard font' : 'Switch to OpenDyslexic font'}
-                  style={{
-                    width: '100%', border: `1.5px solid ${dyslexicFont ? '#0284c7' : '#e2e8f0'}`,
-                    borderRadius: 7, background: dyslexicFont ? '#eff6ff' : '#fff',
-                    color: dyslexicFont ? '#0369a1' : '#475569',
-                    cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                    padding: '7px 12px', textAlign: 'left', display: 'flex',
-                    alignItems: 'center', justifyContent: 'space-between'
-                  }}
-                >
-                  <span>OpenDyslexic font</span>
-                  <span style={{
-                    fontSize: 11, fontWeight: 600, borderRadius: 10, padding: '2px 8px',
-                    background: dyslexicFont ? '#e0f2fe' : '#f1f5f9',
-                    color: dyslexicFont ? '#0369a1' : '#64748b',
-                    border: `1px solid ${dyslexicFont ? '#7dd3fc' : '#e2e8f0'}`
-                  }}>
-                    {dyslexicFont ? 'On' : 'Off'}
-                  </span>
-                </button>
               </div>
 
             </div>
@@ -1436,11 +1475,11 @@ ${ann.comments.length === 0
                 {showAudioPicker && (
                   <div style={{
                     position: 'absolute', top: '100%', left: 0, marginTop: 4,
-                    background: '#fff', border: '1px solid #bae6fd', borderRadius: 10,
+                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10,
                     boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 9000,
                     minWidth: 240, padding: '8px 0'
                   }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 14px 6px' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 14px 6px' }}>
                       Audio source for analysis
                     </div>
 
@@ -1469,7 +1508,7 @@ ${ann.comments.length === 0
                     {/* Mic devices — list all available */}
                     {micDevices.length > 0 && (
                       <>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 14px 4px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 14px 4px' }}>
                           Microphones
                         </div>
                         {micDevices
@@ -1489,7 +1528,7 @@ ${ann.comments.length === 0
                     )}
 
                     {/* BlackHole */}
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 14px 4px' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 14px 4px' }}>
                       System audio
                     </div>
                     {micDevices.some(d => d.label.toLowerCase().includes('blackhole')) ? (
@@ -1592,7 +1631,7 @@ ${ann.comments.length === 0
               <span style={{ color: screen.savedAsFallback ? '#92400e' : '#15803d', fontSize: 12, fontWeight: 600 }}>
                 {screen.savedAsFallback ? '⚠ Saved as WebM (MP4 conversion unavailable)' : '✓ Recording saved'}
               </span>
-              <span style={{ color: '#64748b', fontSize: 11 }}>— share this video with your student, or use Report → Export PDF for structured feedback</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>— share this video with your student, or use Report → Export PDF for structured feedback</span>
               <button
                 onClick={() => { window.api.openPath(screen.savedPath!); screen.clearSavedPath() }}
                 style={{ ...btnStyle('#15803d'), fontSize: 11, padding: '3px 8px' }}
@@ -1610,7 +1649,7 @@ ${ann.comments.length === 0
 
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
             {/* Annotation tools */}
-            <span style={{ color: '#475569', fontSize: 12, alignSelf: 'center', marginRight: 4 }}>Draw:</span>
+            <span style={{ color: 'var(--text-secondary)', fontSize: 12, alignSelf: 'center', marginRight: 4 }}>Draw:</span>
             {(['rect', 'circle', 'arrow', 'text'] as AnnotationTool[]).map(t => (
               <button
                 key={t!}
@@ -1800,23 +1839,23 @@ ${ann.comments.length === 0
               {/* Device pickers — shown before webcam starts so user can select camera first */}
               {cameraDevices.length > 0 && (
                 <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#334155', background: '#fff', borderRadius: 8, padding: '6px 10px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--text-medium)', background: 'var(--bg-elevated)', borderRadius: 8, padding: '6px 10px', border: '1px solid var(--border-light)' }}>
                     <span style={{ fontSize: 20 }}>📷</span>
                     <select value={selectedCameraId} onChange={e => setSelectedCameraId(e.target.value)}
-                      style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', maxWidth: 180 }}>
+                      style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border-medium)', background: 'var(--bg-surface)', color: 'var(--text-medium)', maxWidth: 180 }}>
                       {cameraDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Camera'}</option>)}
                     </select>
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#334155', background: '#fff', borderRadius: 8, padding: '6px 10px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--text-medium)', background: 'var(--bg-elevated)', borderRadius: 8, padding: '6px 10px', border: '1px solid var(--border-light)' }}>
                     <span style={{ fontSize: 20 }}>🎙</span>
                     <select value={selectedMicId} onChange={e => setSelectedMicId(e.target.value)}
-                      style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', maxWidth: 180 }}>
+                      style={{ fontSize: 12, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border-medium)', background: 'var(--bg-surface)', color: 'var(--text-medium)', maxWidth: 180 }}>
                       {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Microphone'}</option>)}
                     </select>
                   </label>
                 </div>
               )}
-              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 12 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 12 }}>
                 Supports MP4, MOV, WebM, MKV, MP3, WAV, M4A
               </div>
               <PermissionStatus />
@@ -1920,8 +1959,8 @@ function DomainBar({ domain, onSelect }: { domain: Domain; onSelect: (d: Domain)
       gridTemplateColumns: 'repeat(4, 1fr)',
       gap: 6,
       padding: '8px 10px',
-      borderBottom: '1px solid #bae6fd',
-      background: '#e0f2fe'
+      borderBottom: '1px solid var(--border)',
+      background: 'var(--bg)'
     }}>
       {ALL_DOMAINS.map(d => {
         const c = DOMAIN_CONFIG[d]
@@ -1973,20 +2012,20 @@ function AudioSourceBar({
 
   if (mediaMode === 'webcam') {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid #bae6fd' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
         {dot('#34d399')}
         <span style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>Webcam microphone</span>
-        <span style={{ fontSize: 12, color: '#475569' }}>— live from your camera</span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>— live from your camera</span>
       </div>
     )
   }
 
   if (source === 'blackhole') {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid #bae6fd' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
         {dot('#7c3aed')}
         <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>◈ BlackHole 2ch</span>
-        <span style={{ fontSize: 12, color: '#475569' }}>— capturing app audio</span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>— capturing app audio</span>
       </div>
     )
   }
@@ -1995,7 +2034,7 @@ function AudioSourceBar({
     const dev = micDevices.find(d => d.deviceId === selectedMicId)
     const label = dev?.label || 'Microphone'
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid #bae6fd' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
         {dot('#34d399')}
         <span style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>🎙 {label}</span>
       </div>
@@ -2003,10 +2042,10 @@ function AudioSourceBar({
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid #bae6fd' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
       {dot('#3b82f6')}
       <span style={{ fontSize: 11, color: '#1d4ed8', fontWeight: 600 }}>Video file audio</span>
-      <span style={{ fontSize: 12, color: '#475569' }}>— use 🎙 Audio Source to change</span>
+      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>— use 🎙 Audio Source to change</span>
     </div>
   )
 }
@@ -2037,7 +2076,7 @@ function AudioPickerOption({
       <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: active ? 700 : 500, color: active ? '#1d4ed8' : '#0f172a', lineHeight: 1.2 }}>{label}</div>
-        <div style={{ fontSize: 12, color: '#475569', marginTop: 1 }}>{sub}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 1 }}>{sub}</div>
       </div>
       {active && <span style={{ color: '#3b82f6', fontSize: 14, flexShrink: 0 }}>✓</span>}
     </button>
@@ -2065,16 +2104,16 @@ function AnnotationsList({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {annotations.length === 0 && (
-        <p style={{ color: '#64748b', fontSize: 13, textAlign: 'center', margin: '16px 0' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', margin: '16px 0' }}>
           No annotations yet. Select a draw tool and click on the video.
         </p>
       )}
       {annotations.map(a => (
         <div key={a.id} style={{
-          background: '#ffffff',
+          background: 'var(--bg-elevated)',
           borderRadius: 6,
           padding: '8px 10px',
-          border: '1px solid #bae6fd',
+          border: '1px solid var(--border)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -2094,15 +2133,15 @@ function AnnotationsList({
             >
               {fmt(a.timestamp)}
             </button>
-            <span style={{ color: '#64748b', fontSize: 12 }}>{a.type}</span>
-            {a.text && <span style={{ color: '#334155', fontSize: 12 }}>"{a.text}"</span>}
+            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{a.type}</span>
+            {a.text && <span style={{ color: 'var(--text-medium)', fontSize: 12 }}>"{a.text}"</span>}
           </div>
           <button
             onClick={() => onDelete(a.id)}
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-faint)',
               cursor: 'pointer',
               fontSize: 14,
               padding: 0
@@ -2136,7 +2175,7 @@ function btnStyle(bg: string): React.CSSProperties {
   const textColor = isDarkNeutral ? '#334155' : '#f1f5f9'
   return {
     background: resolvedBg,
-    border: '1px solid #bae6fd',
+    border: '1px solid var(--border)',
     borderRadius: 6,
     color: textColor,
     cursor: 'pointer',
@@ -2165,12 +2204,12 @@ function ElevenLabsKeyInput({ apiKey, onSave }: { apiKey: string; onSave: (k: st
         onChange={handleChange}
         placeholder="sk_… (leave blank for browser voice)"
         style={{
-          flex: 1, border: '1px solid #e2e8f0', borderRadius: 6,
-          fontSize: 11, padding: '5px 8px', background: '#fff',
-          fontFamily: 'monospace', color: '#1e293b', outline: 'none'
+          flex: 1, border: '1px solid var(--border-light)', borderRadius: 6,
+          fontSize: 11, padding: '5px 8px', background: 'var(--bg-elevated)',
+          fontFamily: 'monospace', color: 'var(--text-dark)', outline: 'none'
         }}
       />
-      <button onClick={() => setShow(v => !v)} style={{ border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, padding: '0 7px' }}>
+      <button onClick={() => setShow(v => !v)} style={{ border: '1px solid var(--border-light)', borderRadius: 6, background: 'var(--bg-elevated)', cursor: 'pointer', fontSize: 13, padding: '0 7px' }}>
         {show ? '🙈' : '👁'}
       </button>
     </div>
@@ -2195,12 +2234,12 @@ function SidebarKeyInput({ apiKey, provider, onSave }: { apiKey: string; provide
         onChange={handleChange}
         placeholder={PROVIDER_CONFIG[provider].placeholder}
         style={{
-          flex: 1, border: '1px solid #e2e8f0', borderRadius: 6,
-          fontSize: 11, padding: '5px 8px', background: '#fff',
-          fontFamily: 'monospace', color: '#1e293b', outline: 'none'
+          flex: 1, border: '1px solid var(--border-light)', borderRadius: 6,
+          fontSize: 11, padding: '5px 8px', background: 'var(--bg-elevated)',
+          fontFamily: 'monospace', color: 'var(--text-dark)', outline: 'none'
         }}
       />
-      <button onClick={() => setShow(v => !v)} style={{ border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, padding: '0 7px' }}>
+      <button onClick={() => setShow(v => !v)} style={{ border: '1px solid var(--border-light)', borderRadius: 6, background: 'var(--bg-elevated)', cursor: 'pointer', fontSize: 13, padding: '0 7px' }}>
         {show ? '🙈' : '👁'}
       </button>
     </div>
@@ -2231,7 +2270,7 @@ function PermissionStatus() {
   const cam = pillColor(status.camera)
   const mic = pillColor(status.microphone)
   const pill: React.CSSProperties = { fontSize: 11, padding: '3px 8px', borderRadius: 999, fontWeight: 600 }
-  const btn: React.CSSProperties = { fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: 'pointer', fontWeight: 500 }
+  const btn: React.CSSProperties = { fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border-medium)', background: 'var(--bg-surface)', color: 'var(--text-medium)', cursor: 'pointer', fontWeight: 500 }
 
   const needsHelp = status.camera !== 'granted' || status.microphone !== 'granted'
 
@@ -2242,7 +2281,7 @@ function PermissionStatus() {
         <span style={{ ...pill, background: mic.bg, color: mic.fg, border: `1px solid ${mic.border}` }}>🎙 Mic: {status.microphone}</span>
       </div>
       {needsHelp && (
-        <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', lineHeight: 1.5, marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5, marginTop: 2 }}>
           {status.microphone !== 'granted' && status.microphone !== 'not-determined' && (
             <>If the app does not appear in System Settings → Privacy &amp; Security → Microphone, click <b>Reset Permissions</b> below — this clears macOS&apos;s silent-denial state and prompts again on relaunch.</>
           )}
@@ -2267,16 +2306,16 @@ const styles: Record<string, React.CSSProperties> = {
   root: {
     display: 'flex',
     height: '100vh',
-    background: '#e0f2fe',
-    color: '#0f172a',
+    background: 'var(--bg)',
+    color: 'var(--text)',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     overflow: 'hidden'
   },
   sidebar: {
     width: 320,
     minWidth: 280,
-    borderRight: '1px solid #bae6fd',
-    background: '#f0f9ff',
+    borderRight: '1px solid var(--border)',
+    background: 'var(--bg-card)',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden'
@@ -2286,19 +2325,19 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'flex-start',
     alignItems: 'center',
     padding: '8px 12px 12px',
-    borderBottom: '1px solid #bae6fd',
-    background: '#fff'
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--bg-elevated)'
   },
   tabBar: {
     display: 'flex',
-    borderBottom: '1px solid #bae6fd'
+    borderBottom: '1px solid var(--border)'
   },
   tab: {
     flex: 1,
     borderTop: 'none',
     borderBottom: 'none',
     borderLeft: 'none',
-    borderRight: '1px solid #bae6fd',
+    borderRight: '1px solid var(--border)',
     cursor: 'pointer',
     fontSize: 10,
     fontWeight: 500,
@@ -2326,7 +2365,7 @@ const styles: Record<string, React.CSSProperties> = {
     paddingBottom: 4,
   },
   fileName: {
-    color: '#64748b',
+    color: 'var(--text-muted)',
     fontSize: 12,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -2339,16 +2378,16 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
-    color: '#64748b',
+    color: 'var(--text-muted)',
     userSelect: 'none'
   },
   graphs: {
     display: 'flex',
     flexDirection: 'column',
     gap: 6,
-    background: '#f0f9ff',
+    background: 'var(--bg-card)',
     borderRadius: 8,
     padding: 14,
-    border: '1px solid #bae6fd'
+    border: '1px solid var(--border)'
   }
 }
