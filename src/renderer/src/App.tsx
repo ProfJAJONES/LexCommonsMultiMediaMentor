@@ -1783,8 +1783,11 @@ ${ann.comments.length === 0
             </div>
           ) : (
             <div style={{ ...styles.placeholder, height: '100%' }}>
-              <div style={{ fontSize: 14, color: '#e2e8f0', marginBottom: 16, fontWeight: 500, letterSpacing: 0.2, textAlign: 'center', maxWidth: 520, lineHeight: 1.6 }}>
-                Record or import oral advocacy practice — get real-time pitch &amp; volume analysis, annotate video, and AI coaching
+              <div style={{ fontSize: 20, color: '#f0f9ff', marginBottom: 6, fontWeight: 700, letterSpacing: 0.3, textAlign: 'center' }}>
+                Communicative Performance Practice
+              </div>
+              <div style={{ fontSize: 13, color: '#bae6fd', marginBottom: 16, fontWeight: 400, textAlign: 'center', maxWidth: 520, lineHeight: 1.6 }}>
+                Record or import a session — get real-time pitch &amp; volume analysis, annotate video, and AI coaching
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
                 <button onClick={handleImport} style={{ ...btnStyle('#3b82f6'), fontSize: 14, padding: '10px 20px' }}>

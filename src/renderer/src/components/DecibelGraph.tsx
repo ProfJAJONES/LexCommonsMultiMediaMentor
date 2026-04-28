@@ -102,8 +102,8 @@ export const DecibelGraph = forwardRef<DecibelGraphHandle, Props>(function Decib
 
     // ── dB labels (right gutter) ──────────────────────────────────────────────
     ctx.save()
-    ctx.fillStyle = '#94a3b8'
-    ctx.font = '8px monospace'
+    ctx.fillStyle = '#475569'
+    ctx.font = '11px monospace'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
     for (const db of [0, -15, -30, -45, -60, -80]) {
@@ -144,18 +144,18 @@ export const DecibelGraph = forwardRef<DecibelGraphHandle, Props>(function Decib
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 12 }}>
-        <span>VOLUME</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#475569', fontSize: 13 }}>
+        <span style={{ fontWeight: 700 }}>VOLUME</span>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {isFinite(currentDb) && (
             <span style={{
-              fontSize: 10, padding: '2px 6px', borderRadius: 4,
-              background: currentZone.color, color: currentZone.textColor, fontWeight: 600
+              fontSize: 12, padding: '2px 7px', borderRadius: 4,
+              background: currentZone.color, color: currentZone.textColor, fontWeight: 700
             }}>
               {currentZone.label}
             </span>
           )}
-          <span style={{ color: dbColor(currentDb), fontFamily: 'monospace' }}>
+          <span style={{ color: dbColor(currentDb), fontFamily: 'monospace', fontSize: 13 }}>
             {isFinite(currentDb) ? `${Math.round(clampedDb)} dBFS` : '—'}
           </span>
         </div>

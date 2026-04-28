@@ -184,12 +184,12 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
 
     // ── Note labels (right gutter) ────────────────────────────────────────────
     ctx.save()
-    ctx.font = '8px monospace'
+    ctx.font = '11px monospace'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
     for (const n of GRID_NOTES) {
       const y = hzToY(n.hz, height)
-      ctx.fillStyle = n.label.startsWith('C') ? '#64748b' : '#94a3b8'
+      ctx.fillStyle = n.label.startsWith('C') ? '#475569' : '#64748b'
       ctx.fillText(`${n.label} ${n.hz}`, graphR + 4, y)
     }
     ctx.restore()
@@ -212,7 +212,7 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
       ctx.stroke()
       ctx.setLineDash([])
       ctx.fillStyle = 'rgba(2,132,199,0.75)'
-      ctx.font = '8px monospace'
+      ctx.font = '11px monospace'
       ctx.textAlign = 'right'
       ctx.textBaseline = 'bottom'
       ctx.fillText(`avg ${Math.round(avg)} Hz`, graphR - 2, avgY - 1)
@@ -277,14 +277,14 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 12 }}>
-        <span>PITCH</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#475569', fontSize: 13 }}>
+        <span style={{ fontWeight: 700 }}>PITCH</span>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {currentPitch > 0 && (
             <span style={{
-              fontSize: 10, padding: '2px 6px', borderRadius: 4,
+              fontSize: 12, padding: '2px 7px', borderRadius: 4,
               background: pitchColor(currentPitch) + '33',
-              color: pitchColor(currentPitch), fontWeight: 600
+              color: pitchColor(currentPitch), fontWeight: 700
             }}>
               {rangeLabel(currentPitch)}
             </span>
@@ -293,20 +293,20 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
             const info = hzToNoteInfo(currentPitch)
             return info ? (
               <span style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-                <span style={{ color: pitchColor(currentPitch), fontFamily: 'monospace', fontWeight: 700, fontSize: 14 }}>
+                <span style={{ color: pitchColor(currentPitch), fontFamily: 'monospace', fontWeight: 700, fontSize: 16 }}>
                   {info.name}{info.octave}
                 </span>
                 <span style={{
-                  fontFamily: 'monospace', fontSize: 10,
+                  fontFamily: 'monospace', fontSize: 12,
                   color: Math.abs(info.cents) <= 5 ? '#34d399' : Math.abs(info.cents) <= 15 ? '#fbbf24' : '#f87171',
-                  minWidth: 34, textAlign: 'right'
+                  minWidth: 36, textAlign: 'right'
                 }}>
                   {info.cents === 0 ? '±0¢' : `${info.cents > 0 ? '+' : ''}${info.cents}¢`}
                 </span>
               </span>
             ) : null
           })()}
-          <span style={{ color: pitchColor(currentPitch || 300), fontFamily: 'monospace' }}>
+          <span style={{ color: pitchColor(currentPitch || 300), fontFamily: 'monospace', fontSize: 13 }}>
             {currentPitch > 0 ? `${Math.round(currentPitch)} Hz` : '—'}
           </span>
         </div>
