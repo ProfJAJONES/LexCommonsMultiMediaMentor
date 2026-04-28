@@ -120,12 +120,26 @@ export function useAudioAnalysis(
     const video = videoRef.current
     if (!video) return
     disconnectAll()
-    if (!videoSrcRef.current) {
-      videoSrcRef.current = ctx.createMediaElementSource(video)
+
+    // captureStream() taps the video element's output without CORS restrictions
+    // and without diverting audio away from the HTML audio pipeline — speakers
+    // still work normally. This is more reliable than createMediaElementSource()
+    // for custom protocols (media://local) used in Electron packaged apps.
+    const cs = (video as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.()
+    if (cs) {
+      // Don't route to ctx.destination — the HTML element handles speaker output
+      try { analyser.disconnect(ctx.destination) } catch { /* ok */ }
+      streamSrcRef.current = ctx.createMediaStreamSource(cs)
+      streamSrcRef.current.connect(analyser)
+      connectedStreamRef.current = cs
+    } else {
+      // Fallback: divert audio through Web Audio (must reconnect to destination for speakers)
+      if (!videoSrcRef.current) {
+        videoSrcRef.current = ctx.createMediaElementSource(video)
+      }
+      try { analyser.connect(ctx.destination) } catch { /* already connected */ }
+      videoSrcRef.current.connect(analyser)
     }
-    // Restore speaker output for video file playback
-    try { analyser.connect(ctx.destination) } catch { /* already connected */ }
-    videoSrcRef.current.connect(analyser)
   }
 
   function connectStreamSource(ctx: AudioContext, analyser: AnalyserNode, stream: MediaStream) {

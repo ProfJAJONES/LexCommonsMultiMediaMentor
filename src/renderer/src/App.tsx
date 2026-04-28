@@ -1642,7 +1642,19 @@ ${ann.comments.length === 0
                   <span>🎙</span>
                   <select
                     value={selectedMicId}
-                    onChange={e => setSelectedMicId(e.target.value)}
+                    onChange={async e => {
+                      const deviceId = e.target.value
+                      setSelectedMicId(deviceId)
+                      try {
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                          audio: deviceId ? { deviceId: { exact: deviceId } } : true
+                        })
+                        setWebcamAudioStream(prev => {
+                          prev?.getTracks().forEach(t => t.stop())
+                          return stream
+                        })
+                      } catch { /* ignore mic switch errors */ }
+                    }}
                     style={devSelect}
                   >
                     {micDevices.map(d => (
@@ -2243,7 +2255,7 @@ const styles: Record<string, React.CSSProperties> = {
   graphs: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 6,
     background: '#f0f9ff',
     borderRadius: 8,
     padding: 14,
