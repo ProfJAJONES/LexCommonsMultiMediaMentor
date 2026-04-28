@@ -8,6 +8,9 @@ export interface PracticeMessage {
   speaker: 'student' | 'character' | 'system'
   text: string
   timestamp: number
+  wpm?: number
+  fillerCount?: number
+  fillerBreakdown?: Record<string, number>
 }
 
 function uid() {
@@ -60,7 +63,8 @@ export function useLivePractice(apiKey: string, provider: AIProvider = 'anthropi
   const sendTurn = useCallback(async (
     studentText: string,
     character: PracticeCharacter,
-    knowledgeBlock: string
+    knowledgeBlock: string,
+    speechStats?: { wpm: number; fillerCount: number; fillerBreakdown: Record<string, number> }
   ) => {
     if (!apiKey.trim() || !studentText.trim()) return
 
@@ -72,7 +76,8 @@ export function useLivePractice(apiKey: string, provider: AIProvider = 'anthropi
       id: uid(),
       speaker: 'student',
       text: studentText.trim(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      ...(speechStats ?? {})
     }
 
     const currentMsgs = [...messagesRef.current, studentMsg]

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { Domain } from '../hooks/useDomain'
 import { DOMAIN_CONFIG } from '../hooks/useDomain'
 import { PRACTICE_CHARACTERS, type PracticeCharacter } from '../config/practiceCharacters'
-import { useLivePractice } from '../hooks/useLivePractice'
+import { useLivePractice, type PracticeMessage } from '../hooks/useLivePractice'
 import { useWhisperTranscription } from '../hooks/useWhisperTranscription'
 import { useAIKnowledgeBase } from '../hooks/useAIKnowledgeBase'
 import { streamCompletion, type AIProvider } from '../utils/aiClient'
@@ -169,7 +169,6 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
       wasListeningRef.current = false
       const text = speech.getTranscript()
       if (text && !practiceRef.current.isResponding) {
-        // Accumulate speech stats for this turn
         const wpm = calcWpm(text, speech.lastRecordingDurationMs)
         const fillers = countFillers(text)
         setSessionStats(prev => ({
@@ -178,10 +177,13 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
           totalDurationMs: prev.totalDurationMs + speech.lastRecordingDurationMs,
           fillers: mergeFillerStats(prev.fillers, fillers)
         }))
-        void wpm  // used in display below via sessionStats
         setInput('')
         const eff = applyBenchTemp(characterRef.current, benchTempRef.current)
-        practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock(characterRef.current.id))
+        practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock(characterRef.current.id), {
+          wpm,
+          fillerCount: fillers.total,
+          fillerBreakdown: fillers.breakdown
+        })
       }
     }
   }, [speech.isListening]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -495,8 +497,13 @@ ${rows}
     if (!text || practiceRef.current.isResponding) return
     speech.abort()
     setInput('')
+    const fillers = countFillers(text)
     const eff = applyBenchTemp(character, benchTemp)
-    practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock(character.id))
+    practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock(character.id), {
+      wpm: 0,
+      fillerCount: fillers.total,
+      fillerBreakdown: fillers.breakdown
+    })
   }, [input, speech, character, benchTemp]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -830,37 +837,6 @@ ${rows}
             </div>
           )}
 
-          {/* Speech stats bar */}
-          {sessionStats.turnCount > 0 && (() => {
-            const avgWpm = sessionStats.totalDurationMs > 0
-              ? Math.round(sessionStats.totalWords / (sessionStats.totalDurationMs / 60000))
-              : 0
-            const top3 = Object.entries(sessionStats.fillers.breakdown)
-              .sort((a, b) => b[1] - a[1]).slice(0, 3)
-            return (
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 9px', fontSize: 10, color: '#475569', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, color: '#0284c7' }}>📊</span>
-                {avgWpm > 0 && (
-                  <span><span style={{ fontWeight: 700 }}>{avgWpm}</span> WPM avg</span>
-                )}
-                {sessionStats.fillers.total > 0 && (
-                  <span>
-                    <span style={{ fontWeight: 700, color: '#dc2626' }}>{sessionStats.fillers.total}</span> filler{sessionStats.fillers.total !== 1 ? 's' : ''}
-                    {top3.length > 0 && (
-                      <span style={{ color: '#94a3b8' }}>
-                        {' '}({top3.map(([k, v]) => `"${k}" ×${v}`).join(', ')})
-                      </span>
-                    )}
-                  </span>
-                )}
-                {sessionStats.fillers.total === 0 && avgWpm > 0 && (
-                  <span style={{ color: '#34d399', fontWeight: 600 }}>No fillers detected</span>
-                )}
-                <span style={{ color: '#cbd5e1' }}>{sessionStats.turnCount} turn{sessionStats.turnCount !== 1 ? 's' : ''}</span>
-              </div>
-            )
-          })()}
-
           {/* Input area */}
           <div style={s.inputArea}>
 
@@ -955,6 +931,37 @@ ${rows}
         </>
       )}
 
+      {/* ── Speech stats bar — shown during and after session ──── */}
+      {sessionStats.turnCount > 0 && (() => {
+        const avgWpm = sessionStats.totalDurationMs > 0
+          ? Math.round(sessionStats.totalWords / (sessionStats.totalDurationMs / 60000))
+          : 0
+        const top3 = Object.entries(sessionStats.fillers.breakdown)
+          .sort((a, b) => b[1] - a[1]).slice(0, 3)
+        return (
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 9px', fontSize: 10, color: '#475569', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, color: '#0284c7' }}>📊</span>
+            {avgWpm > 0 && (
+              <span><span style={{ fontWeight: 700 }}>{avgWpm}</span> WPM avg</span>
+            )}
+            {sessionStats.fillers.total > 0 && (
+              <span>
+                <span style={{ fontWeight: 700, color: '#dc2626' }}>{sessionStats.fillers.total}</span> filler{sessionStats.fillers.total !== 1 ? 's' : ''}
+                {top3.length > 0 && (
+                  <span style={{ color: '#94a3b8' }}>
+                    {' '}({top3.map(([k, v]) => `"${k}" ×${v}`).join(', ')})
+                  </span>
+                )}
+              </span>
+            )}
+            {sessionStats.fillers.total === 0 && avgWpm > 0 && (
+              <span style={{ color: '#34d399', fontWeight: 600 }}>No fillers detected</span>
+            )}
+            <span style={{ color: '#cbd5e1' }}>{sessionStats.turnCount} turn{sessionStats.turnCount !== 1 ? 's' : ''}</span>
+          </div>
+        )
+      })()}
+
       {/* ── Idle state (after session ended) ───────────────────── */}
       {!practice.sessionActive && practice.messages.length === 0 && (
         <div style={{ color: '#94a3b8', fontSize: 11, textAlign: 'center', padding: '16px 0', lineHeight: 1.6 }}>
@@ -987,12 +994,15 @@ function avatarColor(name: string): string {
 // ─── Message bubble ───────────────────────────────────────────────────────────
 
 function PracticeMessageBubble({ message: m, character, isFirst, streaming }: {
-  message: { id: string; speaker: string; text: string }
+  message: PracticeMessage | { id: string; speaker: string; text: string }
   character: PracticeCharacter
   isFirst: boolean
   streaming?: boolean
 }) {
   const isStudent = m.speaker === 'student'
+  const msgWpm = 'wpm' in m ? m.wpm : undefined
+  const msgFillerCount = 'fillerCount' in m ? m.fillerCount : undefined
+  const msgFillerBreakdown = 'fillerBreakdown' in m ? m.fillerBreakdown : undefined
 
   // Parse panel speaker label from "Judge Chen: ..." or "Justice Kagan: ..." etc.
   let speakerLabel: string = isStudent ? 'You' : character.label
@@ -1058,6 +1068,26 @@ function PracticeMessageBubble({ message: m, character, isFirst, streaming }: {
           {renderText(bodyText)}
           {streaming && <span style={{ color: color, animation: 'blink 1s step-end infinite' }}>▌</span>}
         </div>
+        {isStudent && (msgWpm !== undefined || msgFillerCount !== undefined) && (
+          <div style={{ display: 'flex', gap: 6, fontSize: 9, color: '#94a3b8', marginTop: 1, flexWrap: 'wrap' }}>
+            {msgWpm !== undefined && msgWpm > 0 && (
+              <span style={{ color: '#0284c7', fontWeight: 600 }}>⚡ {msgWpm} wpm</span>
+            )}
+            {msgFillerCount !== undefined && msgFillerCount > 0 && (
+              <span style={{ color: '#f87171', fontWeight: 600 }}>
+                {msgFillerCount} filler{msgFillerCount !== 1 ? 's' : ''}
+                {msgFillerBreakdown && Object.keys(msgFillerBreakdown).length > 0 && (
+                  <span style={{ color: '#94a3b8', fontWeight: 400 }}>
+                    {' '}({Object.entries(msgFillerBreakdown).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, v]) => `"${k}" ×${v}`).join(', ')})
+                  </span>
+                )}
+              </span>
+            )}
+            {msgFillerCount === 0 && msgWpm !== undefined && msgWpm > 0 && (
+              <span style={{ color: '#34d399', fontWeight: 600 }}>✓ no fillers</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
