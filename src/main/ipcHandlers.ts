@@ -289,13 +289,12 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
     }
   })
 
-  // Bundle a screen recording + session JSON into a single zip archive.
-  // The caller stops the recording first (via stopAndGetBlob) and passes the
-  // raw webm bytes here so we never show two separate save dialogs.
+  // Bundle a screen recording + session data into a zip with MP4, PDF, DOCX, and JSON.
   ipcMain.handle('desktop:saveProjectPackage', async (
     _event,
     webmBuffer: Uint8Array | null,
-    sessionJson: string,
+    reportHtml: string,
+    notesPayload: { fileName: string; exportedAt: string; comments: Array<{ timestamp: number; author: string; tag: string; text: string }> },
     slug: string
   ) => {
     const dateStr = new Date().toISOString().slice(0, 10)
@@ -303,7 +302,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
     const defaultName = `${safeName}-${dateStr}-package.zip`
 
     const result = await dialog.showSaveDialog({
-      title: 'Save Project Package',
+      title: 'Save Session Package',
       defaultPath: join(homedir(), 'Desktop', defaultName),
       filters: [{ name: 'ZIP Archive', extensions: ['zip'] }]
     })
@@ -314,10 +313,106 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
 
     try {
       mkdirSync(tmpDir, { recursive: true })
-      writeFileSync(join(tmpDir, `session-${dateStr}.json`), sessionJson, 'utf-8')
+
+      // ── 1. JSON (always — supports round-trip re-import) ────────────────────
+      writeFileSync(join(tmpDir, 'session-data.json'), JSON.stringify(notesPayload, null, 2), 'utf-8')
+
+      // ── 2. Video: WebM → MP4 ────────────────────────────────────────────────
       if (webmBuffer && webmBuffer.byteLength > 0) {
-        writeFileSync(join(tmpDir, `recording-${dateStr}.webm`), Buffer.from(webmBuffer))
+        const tmpWebm = join(tmpDir, '_raw.webm')
+        const mp4Out  = join(tmpDir, 'recording.mp4')
+        writeFileSync(tmpWebm, Buffer.from(webmBuffer))
+        try {
+          const ffmpegPath = getFfmpegPath()
+          ffmpeg.setFfmpegPath(ffmpegPath)
+          await new Promise<void>((res, rej) => {
+            ffmpeg(tmpWebm)
+              .videoCodec('libx264').videoBitrate('2000k')
+              .audioCodec('aac').audioBitrate('192k')
+              .outputOptions(['-movflags', 'faststart', '-pix_fmt', 'yuv420p'])
+              .save(mp4Out)
+              .on('end', res).on('error', rej)
+          })
+          try { unlinkSync(tmpWebm) } catch { /* ok */ }
+        } catch {
+          // ffmpeg failed — keep WebM so the student has something
+          try { require('fs').renameSync(tmpWebm, join(tmpDir, 'recording.webm')) } catch { /* ok */ }
+        }
       }
+
+      // ── 3. PDF — render HTML in hidden BrowserWindow ────────────────────────
+      if (reportHtml) {
+        const tmpHtml = join(tmpdir(), `mm_pkg_html_${Date.now()}.html`)
+        writeFileSync(tmpHtml, reportHtml, 'utf-8')
+        const win = new BrowserWindow({
+          show: false,
+          webPreferences: { nodeIntegration: false, contextIsolation: true }
+        })
+        try {
+          await win.loadFile(tmpHtml)
+          const pdfBuf = await win.webContents.printToPDF({
+            printBackground: true,
+            pageSize: 'Letter',
+            margins: { marginType: 'default' }
+          })
+          writeFileSync(join(tmpDir, 'session-report.pdf'), pdfBuf)
+        } finally {
+          win.destroy()
+          try { unlinkSync(tmpHtml) } catch { /* ok */ }
+        }
+      }
+
+      // ── 4. DOCX ─────────────────────────────────────────────────────────────
+      const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+      const TAG_COLORS: Record<string, string> = {
+        pacing: '818CF8', clarity: '34D399', volume: 'FBBF24',
+        posture: 'F472B6', eye_contact: '60A5FA', argument: 'F87171', general: '94A3B8'
+      }
+      const docChildren: Paragraph[] = [
+        new Paragraph({
+          text: `Session Report — ${notesPayload.fileName || 'Untitled'}`,
+          heading: HeadingLevel.TITLE,
+          spacing: { after: 120 }
+        }),
+        new Paragraph({
+          children: [new TextRun({ text: `Exported: ${notesPayload.exportedAt}`, color: '64748B', size: 18 })],
+          spacing: { after: 320 }
+        }),
+      ]
+      if (!notesPayload.comments?.length) {
+        docChildren.push(new Paragraph({ children: [new TextRun({ text: 'No feedback comments recorded.', italics: true, color: '64748B' })] }))
+      } else {
+        for (const c of notesPayload.comments) {
+          const tagColor = TAG_COLORS[c.tag] ?? '94A3B8'
+          docChildren.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: `[${fmtTime(c.timestamp)}]  `, bold: true, color: '0284C7', size: 20 }),
+                new TextRun({ text: c.tag.replace('_', ' ').toUpperCase(), bold: true, color: tagColor, size: 18 }),
+              ],
+              spacing: { before: 200, after: 60 },
+              border: { left: { style: BorderStyle.THICK, color: tagColor, size: 12 } },
+              indent: { left: 180 }
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: `${c.author}:  `, bold: true, size: 20 }),
+                new TextRun({ text: c.text, size: 20 }),
+              ],
+              indent: { left: 360 },
+              spacing: { after: 80 }
+            })
+          )
+        }
+      }
+      const doc = new Document({
+        styles: { default: { document: { run: { font: 'Calibri', size: 22 } } } },
+        sections: [{ properties: {}, children: docChildren }]
+      })
+      const docBuf = await Packer.toBuffer(doc)
+      writeFileSync(join(tmpDir, 'session-notes.docx'), docBuf)
+
+      // ── 5. Zip everything ───────────────────────────────────────────────────
       execSync(`cd "${tmpDir}" && zip -r "${zipPath}" .`, { stdio: 'ignore' })
       return zipPath
     } finally {

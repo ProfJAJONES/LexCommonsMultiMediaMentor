@@ -31,8 +31,13 @@ contextBridge.exposeInMainWorld('api', {
   saveRecording: (buffer: Uint8Array, name: string): Promise<string | { fallback: true; webmPath: string } | null> =>
     ipcRenderer.invoke('desktop:saveRecording', buffer, name),
 
-  saveProjectPackage: (webmBuffer: Uint8Array | null, sessionJson: string, slug: string): Promise<string | null> =>
-    ipcRenderer.invoke('desktop:saveProjectPackage', webmBuffer, sessionJson, slug),
+  saveProjectPackage: (
+    webmBuffer: Uint8Array | null,
+    reportHtml: string,
+    notesPayload: { fileName: string; exportedAt: string; comments: object[] },
+    slug: string
+  ): Promise<string | null> =>
+    ipcRenderer.invoke('desktop:saveProjectPackage', webmBuffer, reportHtml, notesPayload, slug),
 
   saveReport: (html: string): Promise<string | null> =>
     ipcRenderer.invoke('desktop:saveReport', html),

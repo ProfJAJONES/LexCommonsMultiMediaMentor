@@ -311,18 +311,22 @@ export default function App() {
   }
 
   // Sidebar "Close Project" — stops any active screen recording and packages
-  // the recording + session JSON into a single zip before clearing state.
+  // the recording + session data into a zip with MP4, PDF, DOCX, and JSON.
   async function handleCloseProject() {
     const isRecording = screen.recorderState === 'recording' || screen.recorderState === 'paused'
     if (isRecording) {
       const recording = await screen.stopAndGetBlob()
       const slug = (fileName || 'session').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')
-      const saveProjectPackage = (window.api as unknown as {
-        saveProjectPackage?: (webm: Uint8Array | null, json: string, slug: string) => Promise<string | null>
-      }).saveProjectPackage
-      if (saveProjectPackage) {
-        await saveProjectPackage(recording?.uint8 ?? null, buildExportJSON(), slug)
-      }
+      await window.api.saveProjectPackage(
+        recording?.uint8 ?? null,
+        buildComprehensiveSessionHTML(),
+        {
+          fileName: fileName || 'Untitled',
+          exportedAt: new Date().toLocaleString(),
+          comments: ann.comments
+        },
+        slug
+      )
       doClear()
       return
     }
@@ -1776,7 +1780,7 @@ ${ann.comments.length === 0
 
               {/* Body tracker */}
               <div style={{ flexShrink: 0 }}>
-                <BodyTracker sourceVideoRef={videoRef} width={bodyTrackerWidth} height={260} apiKey={ai.apiKey} onMovementSample={handleMovementSample} />
+                <BodyTracker sourceVideoRef={videoRef} width={bodyTrackerWidth} height={260} apiKey={ai.apiKey} signingMode={domain === 'asl'} onMovementSample={handleMovementSample} />
               </div>
             </div>
 
@@ -1799,7 +1803,7 @@ ${ann.comments.length === 0
 }
 
 // ---- Domain toggle bar ----
-const ALL_DOMAINS: Domain[] = ['law', 'theater', 'music', 'public_speaking', 'debate', 'teaching']
+const ALL_DOMAINS: Domain[] = ['law', 'theater', 'music', 'public_speaking', 'debate', 'teaching', 'asl']
 
 function DomainBar({ domain, onSelect }: { domain: Domain; onSelect: (d: Domain) => void }) {
   // cfg available if needed for the active domain accent.
@@ -1807,7 +1811,7 @@ function DomainBar({ domain, onSelect }: { domain: Domain; onSelect: (d: Domain)
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(3, 1fr)',
+      gridTemplateColumns: 'repeat(4, 1fr)',
       gap: 6,
       padding: '8px 10px',
       borderBottom: '1px solid #bae6fd',

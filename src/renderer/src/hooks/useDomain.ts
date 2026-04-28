@@ -3,7 +3,7 @@ import type { FeedbackComment } from '../types'
 import type { CommentTemplate } from './useCommentTemplates'
 import type { KnowledgeItem } from './useAIKnowledgeBase'
 
-export type Domain = 'law' | 'theater' | 'music' | 'public_speaking' | 'debate' | 'teaching'
+export type Domain = 'law' | 'theater' | 'music' | 'public_speaking' | 'debate' | 'teaching' | 'asl'
 
 type Tag = FeedbackComment['tag']
 type TemplateBase = Omit<CommentTemplate, 'id' | 'createdAt'>
@@ -321,6 +321,71 @@ export const DOMAIN_CONFIG: Record<Domain, DomainConfig> = {
     defaultKnowledge: [
       { category: 'rubric', title: 'Round Evaluation Criteria', body: `Argumentation (30 pts): Case construction, evidence quality, logical structure, impact calculus.\nRebuttal (30 pts): Engagement with opposing case, extensions, dropped argument tracking.\nCross-Examination (20 pts): Strategic questioning, composure, use of admissions.\nDelivery (20 pts): Clarity, speed control, judge engagement, confidence.` },
       { category: 'guideline', title: 'Round Strategy', body: `Go for 2–3 winning arguments in summary, not 10 mediocre ones.\nExtend your best offense and their best dropped argument every speech.\nCross-ex admissions must make it back into speeches to matter.\nAlways weigh and compare — don\'t assume the judge knows who wins.` },
+    ]
+  },
+
+  // ── ASL ──────────────────────────────────────────────────────────────────────
+  asl: {
+    label: 'ASL',
+    icon: '🤟',
+    color: '#a78bfa',
+    coachTitle: 'ASL Coach',
+    tagLabels: {
+      pacing:      'Rhythm & Flow',
+      clarity:     'Handshape Clarity',
+      volume:      'Signing Space',
+      posture:     'Body Position',
+      eye_contact: 'Facial Grammar',
+      argument:    'Expressiveness',
+      general:     'General'
+    },
+    aiPersona: `You are an experienced ASL (American Sign Language) instructor and Deaf culture advocate. Help students improve handshape precision, palm orientation, movement path, location, non-manual markers (eyebrow position, mouth morphemes, eye gaze), use of signing space, and spatial grammar. Be specific — describe what you observe, what the issue is, and how to correct it. Reference the five parameters of ASL signs: Handshape, Location, Movement, Palm Orientation, Non-Manual Markers.`,
+    quickPrompts: {
+      professor: [
+        'Analyze the handshape and movement clarity in this signing',
+        'What non-manual markers need attention?',
+        'Draft written feedback I can share with the student',
+        'How is the student using signing space?',
+        'Which of the five ASL parameters needs the most work?'
+      ],
+      student: [
+        'How did my signing look overall?',
+        'How can I make my handshapes clearer?',
+        'How do I improve my facial grammar?',
+        'Am I using signing space correctly?',
+        'Tips for signing more fluently and naturally'
+      ]
+    },
+    defaultTemplates: [
+      { tag: 'pacing',      text: 'Your signing rhythm is choppy — work on smooth transitions between signs.' },
+      { tag: 'pacing',      text: 'Good natural flow between signs. The rhythm feels authentic.' },
+      { tag: 'pacing',      text: 'You\'re signing too fast for the complexity of the content — slow down for clarity.' },
+      { tag: 'pacing',      text: 'Hold key signs a beat longer for emphasis — don\'t rush through important points.' },
+      { tag: 'clarity',     text: 'Check your handshape — the fingers need to be more precisely formed.' },
+      { tag: 'clarity',     text: 'Clear, precise handshapes throughout — your hand configurations are well-formed.' },
+      { tag: 'clarity',     text: 'Watch your palm orientation — the wrong direction changes the meaning of the sign.' },
+      { tag: 'clarity',     text: 'Your handshape is drifting mid-sign — maintain the correct configuration through the full movement.' },
+      { tag: 'volume',      text: 'Keep your signs within the signing space — waist to top of head, shoulder-width.' },
+      { tag: 'volume',      text: 'Good use of signing space — your signs are appropriately sized and well-placed.' },
+      { tag: 'volume',      text: 'Your signs are too compressed — open up and use the full signing space.' },
+      { tag: 'volume',      text: 'Some signs are drifting too far from your body — bring them back into the central space.' },
+      { tag: 'posture',     text: 'Strong, upright posture gives your signing more authority and clarity.' },
+      { tag: 'posture',     text: 'Good signing posture — your base is stable and your signs read clearly.' },
+      { tag: 'posture',     text: 'Relax your shoulders — tension is making your signs look stiff and unnatural.' },
+      { tag: 'eye_contact', text: 'Excellent non-manual markers — your eyebrows and mouth are carrying meaning effectively.' },
+      { tag: 'eye_contact', text: 'Use eyebrow raises for yes/no questions and furrowed brows for wh-questions.' },
+      { tag: 'eye_contact', text: 'Maintain eye contact with the viewer — breaking gaze disrupts communication in ASL.' },
+      { tag: 'eye_contact', text: 'Add more mouth morphemes — they carry important grammatical and intensifying information.' },
+      { tag: 'argument',    text: 'Strong expressive signing — your face and hands are working together effectively.' },
+      { tag: 'argument',    text: 'Use classifiers — they will make your descriptions much more visual and precise.' },
+      { tag: 'argument',    text: 'Work on spatial grammar — set up referents in space and maintain them consistently.' },
+      { tag: 'argument',    text: 'Your signing shows English influence — focus on ASL syntax and topicalization.' },
+      { tag: 'general',     text: 'Solid signing overall — your ASL is clear and communicative.' },
+      { tag: 'general',     text: 'Practice in front of a mirror or record yourself and watch back critically.' },
+    ],
+    defaultKnowledge: [
+      { category: 'rubric', title: 'ASL Signing Rubric', body: `Handshape & Formation (25 pts): Correct handshape, palm orientation, and location.\nMovement & Flow (25 pts): Smooth paths, appropriate speed, natural transitions.\nNon-Manual Markers (25 pts): Correct eyebrow position, mouth morphemes, eye gaze.\nSigning Space & Expression (25 pts): Appropriate space use, spatial grammar, classifiers, visual impact.` },
+      { category: 'guideline', title: 'ASL Parameters', body: `Every sign has five parameters: Handshape, Location, Movement, Palm Orientation, Non-Manual Markers.\nNon-manual markers are grammatically obligatory — eyebrow position determines question type.\nSigning space: in front of the body, waist to top of head, within shoulder width.\nEye contact is required in ASL — averting gaze is a significant communicative signal.\nTopicalization: topic first, then comment. ASL syntax differs fundamentally from English.` },
     ]
   },
 
