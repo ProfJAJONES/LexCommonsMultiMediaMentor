@@ -544,30 +544,59 @@ ${rows}
             {characters.map(c => {
               const active = character.id === c.id
               return (
-                <button
-                  key={c.id}
-                  onClick={() => setCharacter(c)}
-                  style={{
-                    background: active ? '#eff6ff' : '#fff',
+                <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  <button
+                    onClick={() => setCharacter(c)}
+                    style={{
+                      background: active ? '#eff6ff' : '#fff',
+                      border: `1.5px solid ${active ? '#3b82f6' : '#e2e8f0'}`,
+                      borderRadius: '10px 10px 0 0',
+                      cursor: 'pointer',
+                      padding: '14px 12px 12px',
+                      textAlign: 'center',
+                      position: 'relative',
+                      width: '100%'
+                    }}
+                  >
+                    {active && (
+                      <span style={{
+                        position: 'absolute', top: 6, right: 8,
+                        color: '#3b82f6', fontSize: 16, lineHeight: 1
+                      }}>✓</span>
+                    )}
+                    <div style={{ fontSize: 96, lineHeight: 1, marginBottom: 8 }}>{c.icon}</div>
+                    <div style={{ color: '#0f172a', fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</div>
+                    <div style={{ color: '#64748b', fontSize: 10, marginTop: 3, lineHeight: 1.35 }}>{c.description}</div>
+                  </button>
+                  {/* Per-character voice selector */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 8px',
+                    background: active ? '#e0effe' : '#f8fafc',
                     border: `1.5px solid ${active ? '#3b82f6' : '#e2e8f0'}`,
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    padding: '14px 12px 12px',
-                    textAlign: 'center',
-                    position: 'relative',
-                    width: '100%'
-                  }}
-                >
-                  {active && (
-                    <span style={{
-                      position: 'absolute', top: 6, right: 8,
-                      color: '#3b82f6', fontSize: 16, lineHeight: 1
-                    }}>✓</span>
-                  )}
-                  <div style={{ fontSize: 96, lineHeight: 1, marginBottom: 8 }}>{c.icon}</div>
-                  <div style={{ color: '#0f172a', fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</div>
-                  <div style={{ color: '#64748b', fontSize: 10, marginTop: 3, lineHeight: 1.35 }}>{c.description}</div>
-                </button>
+                    borderTop: 'none',
+                    borderRadius: '0 0 10px 10px'
+                  }}>
+                    <span style={{ color: '#64748b', fontSize: 10, flexShrink: 0 }}>🔊</span>
+                    <select
+                      value={elevenLabsKey
+                        ? (voiceOverrides[c.id] ?? DEFAULT_VOICE_ID)
+                        : (kokoroVoiceOverrides[c.id] ?? DEFAULT_KOKORO_VOICE)}
+                      onChange={e => elevenLabsKey
+                        ? setVoiceForCharacter(c.id, e.target.value)
+                        : setKokoroVoiceForCharacter(c.id, e.target.value)}
+                      style={{ flex: 1, fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', color: '#0f172a', cursor: 'pointer' }}
+                    >
+                      {elevenLabsKey
+                        ? FREE_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
+                        : KOKORO_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
+                      }
+                    </select>
+                    <span style={{ color: '#94a3b8', fontSize: 9, flexShrink: 0 }}>
+                      {elevenLabsKey ? 'ElevenLabs' : 'Kokoro'}
+                    </span>
+                  </div>
+                </div>
               )
             })}
           </div>
@@ -606,57 +635,28 @@ ${rows}
             </div>
           )}
 
-          {/* Voice picker — ElevenLabs when key is set, Kokoro otherwise */}
-          <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 7, border: '1px solid #e2e8f0' }}>
-            <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
-              🔊 Voice for {character.label}
+          {/* Kokoro model download progress — shown globally when loading */}
+          {!elevenLabsKey && kokoroProgress.status === 'loading' && (
+            <div style={{ padding: '6px 10px', background: '#f8fafc', borderRadius: 7, border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 10, marginBottom: 2 }}>
+                <span>Downloading Kokoro voice model…</span>
+                <span>{kokoroProgress.pct}%</span>
+              </div>
+              <div style={{ background: '#e2e8f0', borderRadius: 4, height: 4, overflow: 'hidden' }}>
+                <div style={{ background: '#3b82f6', height: '100%', width: `${kokoroProgress.pct}%`, transition: 'width 0.3s' }} />
+              </div>
             </div>
-            {elevenLabsKey ? (
-              <>
-                <select
-                  value={voiceOverrides[character.id] ?? DEFAULT_VOICE_ID}
-                  onChange={e => setVoiceForCharacter(character.id, e.target.value)}
-                  style={{ width: '100%', fontSize: 12, padding: '5px 7px', borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a', cursor: 'pointer' }}
-                >
-                  {FREE_VOICES.map(v => (
-                    <option key={v.id} value={v.id}>{v.name}</option>
-                  ))}
-                </select>
-                <div style={{ color: '#94a3b8', fontSize: 10, marginTop: 4 }}>ElevenLabs · saved per character</div>
-              </>
-            ) : (
-              <>
-                <select
-                  value={kokoroVoiceOverrides[character.id] ?? DEFAULT_KOKORO_VOICE}
-                  onChange={e => setKokoroVoiceForCharacter(character.id, e.target.value)}
-                  style={{ width: '100%', fontSize: 12, padding: '5px 7px', borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a', cursor: 'pointer' }}
-                >
-                  {KOKORO_VOICES.map(v => (
-                    <option key={v.id} value={v.id}>{v.name}</option>
-                  ))}
-                </select>
-                {kokoroProgress.status === 'loading' && (
-                  <div style={{ marginTop: 5 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 10, marginBottom: 2 }}>
-                      <span>Downloading voice model…</span>
-                      <span>{kokoroProgress.pct}%</span>
-                    </div>
-                    <div style={{ background: '#e2e8f0', borderRadius: 4, height: 4, overflow: 'hidden' }}>
-                      <div style={{ background: '#3b82f6', height: '100%', width: `${kokoroProgress.pct}%`, transition: 'width 0.3s' }} />
-                    </div>
-                  </div>
-                )}
-                {kokoroProgress.status === 'error' && (
-                  <div style={{ color: '#dc2626', fontSize: 10, marginTop: 4 }}>Voice model failed to load — will use browser voice instead.</div>
-                )}
-                {kokoroProgress.status !== 'loading' && kokoroProgress.status !== 'error' && (
-                  <div style={{ color: '#94a3b8', fontSize: 10, marginTop: 4 }}>
-                    {kokoroProgress.status === 'ready' ? 'Kokoro · local · ready' : 'Kokoro · local · downloads ~82 MB on first use'}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          )}
+          {!elevenLabsKey && kokoroProgress.status === 'error' && (
+            <div style={{ color: '#dc2626', fontSize: 10, padding: '4px 8px', background: '#fef2f2', borderRadius: 5, border: '1px solid #fca5a5' }}>
+              Voice model failed to load — browser voice will be used instead.
+            </div>
+          )}
+          {!elevenLabsKey && kokoroProgress.status !== 'loading' && kokoroProgress.status !== 'error' && (
+            <div style={{ color: '#94a3b8', fontSize: 10, textAlign: 'center' }}>
+              {kokoroProgress.status === 'ready' ? '🟢 Kokoro voice model ready' : 'Kokoro voices · ~82 MB download on first use'}
+            </div>
+          )}
 
           {noApiKey && (
             <div style={{ color: '#dc2626', fontSize: 11, marginTop: 8, padding: '6px 8px', background: '#fef2f2', borderRadius: 5, border: '1px solid #fca5a5' }}>
