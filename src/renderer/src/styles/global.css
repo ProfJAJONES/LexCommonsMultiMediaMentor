@@ -1,3 +1,16 @@
+@font-face {
+  font-family: 'OpenDyslexic';
+  src: url('../assets/fonts/OpenDyslexic-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'OpenDyslexic';
+  src: url('../assets/fonts/OpenDyslexic-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -13,6 +26,32 @@ body {
   -webkit-font-smoothing: antialiased;
   background: #e0f2fe;
   color: #0f172a;
+  font-size: 14px;
+}
+
+/* OpenDyslexic mode — applies to all text in the app */
+body.dyslexic-font,
+body.dyslexic-font * {
+  font-family: 'OpenDyslexic', sans-serif !important;
+  letter-spacing: 0.05em;
+  line-height: 1.6;
+  word-spacing: 0.1em;
+}
+
+/* ── Window drag region ────────────────────────────────────────────────────── */
+/* The main toolbar is made draggable so the user can move the frameless       */
+/* window from it. All interactive elements inside opt out of drag so they     */
+/* remain clickable.                                                            */
+.app-toolbar {
+  -webkit-app-region: drag;
+}
+.app-toolbar button,
+.app-toolbar input,
+.app-toolbar select,
+.app-toolbar label,
+.app-toolbar a,
+.app-toolbar [role="button"] {
+  -webkit-app-region: no-drag;
 }
 
 ::-webkit-scrollbar {

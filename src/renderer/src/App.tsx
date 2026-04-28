@@ -85,6 +85,7 @@ export default function App() {
     const p = localStorage.getItem('mm_ai_provider') ?? 'anthropic'
     return !localStorage.getItem(`mm_ai_key_${p}`) && !localStorage.getItem('mm_ai_key') && !localStorage.getItem('anthropic_api_key')
   })
+  const [dyslexicFont, setDyslexicFont] = useState(false)
   const audioPickerBtnRef = useRef<HTMLButtonElement>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLDivElement>(null)
@@ -288,6 +289,23 @@ export default function App() {
   useEffect(() => {
     if (ai.apiKey) setShowSettingsDrawer(false)
   }, [ai.apiKey])
+
+  // Load dyslexic font preference on mount
+  useEffect(() => {
+    window.api.storeGet('dyslexicFont').then(v => {
+      if (v === 'true') { setDyslexicFont(true); document.body.classList.add('dyslexic-font') }
+    })
+  }, [])
+
+  function toggleDyslexicFont() {
+    setDyslexicFont(prev => {
+      const next = !prev
+      if (next) document.body.classList.add('dyslexic-font')
+      else document.body.classList.remove('dyslexic-font')
+      window.api.storeSet('dyslexicFont', next ? 'true' : 'false')
+      return next
+    })
+  }
 
   function stopWebcam() {
     stopAudio()
@@ -896,7 +914,7 @@ ${ann.comments.length === 0
               title="Export session notes in your preferred format"
               style={{ ...btnStyle('#1e293b'), width: '100%', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
             >
-              Export Notes <span style={{ fontSize: 9 }}>▾</span>
+              Export Notes <span style={{ fontSize: 12 }}>▾</span>
             </button>
             {showExportMenu && (
               <div style={{
@@ -1091,28 +1109,28 @@ ${ann.comments.length === 0
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                     <div style={{ background: '#f0f9ff', borderRadius: 7, padding: '8px 10px', border: '1px solid #bae6fd', textAlign: 'center' }}>
                       <div style={{ fontWeight: 700, color: '#0284c7', fontSize: 20, lineHeight: 1 }}>{ann.comments.length}</div>
-                      <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>feedback items</div>
+                      <div style={{ color: '#475569', fontSize: 12, marginTop: 2 }}>feedback items</div>
                     </div>
                     <div style={{ background: '#f0fdf4', borderRadius: 7, padding: '8px 10px', border: '1px solid #86efac', textAlign: 'center' }}>
                       <div style={{ fontWeight: 700, color: '#16a34a', fontSize: 20, lineHeight: 1 }}>
                         {durationSec >= 60 ? `${Math.floor(durationSec / 60)}m` : `${Math.round(durationSec)}s`}
                       </div>
-                      <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>duration</div>
+                      <div style={{ color: '#475569', fontSize: 12, marginTop: 2 }}>duration</div>
                     </div>
                   </div>
                   <div style={{ background: '#faf5ff', borderRadius: 7, padding: '8px 10px', border: '1px solid #e9d5ff', textAlign: 'center' }}>
                     <div style={{ fontWeight: 700, color: '#7c3aed', fontSize: 20, lineHeight: 1 }}>{audio.pitchHistory.length}</div>
-                    <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>pitch samples</div>
+                    <div style={{ color: '#475569', fontSize: 12, marginTop: 2 }}>pitch samples</div>
                   </div>
                   {ann.annotations.length > 0 && (
                     <div style={{ background: '#fff7ed', borderRadius: 7, padding: '8px 10px', border: '1px solid #fed7aa', textAlign: 'center' }}>
                       <div style={{ fontWeight: 700, color: '#ea580c', fontSize: 20, lineHeight: 1 }}>{ann.annotations.length}</div>
-                      <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>annotations</div>
+                      <div style={{ color: '#475569', fontSize: 12, marginTop: 2 }}>annotations</div>
                     </div>
                   )}
                 </div>
               ) : (
-                <p style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
+                <p style={{ color: '#475569', fontSize: 13, textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
                   Import a file or start a webcam session, then return here for the full report.
                 </p>
               )}
@@ -1148,7 +1166,7 @@ ${ann.comments.length === 0
 
               {/* Provider selector */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>AI Provider</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>AI Provider</div>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {(['anthropic', 'openai', 'gemini'] as const).map(p => {
                     const cfg = PROVIDER_CONFIG[p]
@@ -1171,7 +1189,7 @@ ${ann.comments.length === 0
 
               {/* API Key */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>
                   {PROVIDER_CONFIG[ai.provider].label} API Key
                 </div>
                 <SidebarKeyInput
@@ -1183,23 +1201,23 @@ ${ann.comments.length === 0
 
               {/* ElevenLabs Key — optional, used for higher-quality voices in Practice */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>ElevenLabs Key</span>
-                  <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: '#94a3b8', fontSize: 9 }}>optional · practice voices</span>
+                  <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: '#64748b', fontSize: 11 }}>optional · practice voices</span>
                 </div>
                 <ElevenLabsKeyInput apiKey={ai.elevenLabsKey} onSave={ai.saveElevenLabsKey} />
               </div>
 
               {/* Role */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>Role</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 5 }}>Role</div>
                 <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
                   {(['professor', 'student'] as const).map(r => (
                     <button key={r} onClick={() => ai.saveRole(r)} style={{
-                      flex: 1, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                      padding: '5px 0',
+                      flex: 1, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      padding: '6px 0',
                       background: ai.role === r ? (r === 'professor' ? '#7c3aed' : '#0369a1') : '#f1f5f9',
-                      color: ai.role === r ? '#fff' : '#64748b'
+                      color: ai.role === r ? '#fff' : '#334155'
                     }}>
                       {r === 'professor' ? 'Professor' : 'Student'}
                     </button>
@@ -1209,7 +1227,7 @@ ${ann.comments.length === 0
 
               {/* Knowledge Scope */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>Knowledge Scope</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>Knowledge Scope</div>
                 <input
                   type="range" min={1} max={5} step={1}
                   value={ai.knowledgeScope}
@@ -1218,13 +1236,13 @@ ${ann.comments.length === 0
                 />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 1, marginBottom: 4 }}>
                   {([1, 2, 3, 4, 5] as KnowledgeScope[]).map(n => (
-                    <span key={n} style={{ fontSize: 9, color: ai.knowledgeScope === n ? '#1d4ed8' : '#94a3b8', fontWeight: ai.knowledgeScope === n ? 700 : 400, cursor: 'pointer', textAlign: 'center', width: '20%' }}
+                    <span key={n} style={{ fontSize: 12, color: ai.knowledgeScope === n ? '#1d4ed8' : '#475569', fontWeight: ai.knowledgeScope === n ? 700 : 400, cursor: 'pointer', textAlign: 'center', width: '20%' }}
                       onClick={() => ai.saveKnowledgeScope(n)}>
                       {SCOPE_LABELS[n].icon}
                     </span>
                   ))}
                 </div>
-                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '3px 7px', fontSize: 10, color: '#1e40af', lineHeight: 1.4 }}>
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 8px', fontSize: 12, color: '#1e40af', lineHeight: 1.4 }}>
                   <strong>{SCOPE_LABELS[ai.knowledgeScope].icon} {SCOPE_LABELS[ai.knowledgeScope].label}</strong> — {SCOPE_LABELS[ai.knowledgeScope].description}
                 </div>
               </div>
@@ -1272,8 +1290,8 @@ ${ann.comments.length === 0
 
       {/* Main area */}
       {activeTab !== 'report' && <main style={styles.main}>
-        {/* Toolbar */}
-        <div style={styles.toolbar}>
+        {/* Toolbar — also acts as the window drag zone (see .app-toolbar in global.css) */}
+        <div className="app-toolbar" style={styles.toolbar}>
           <button onClick={handleImport} style={btnStyle('#3b82f6')}>
             Import Video / Audio
           </button>
@@ -1395,7 +1413,7 @@ ${ann.comments.length === 0
                     boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 9000,
                     minWidth: 240, padding: '8px 0'
                   }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 14px 6px' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 14px 6px' }}>
                       Audio source for analysis
                     </div>
 
@@ -1424,7 +1442,7 @@ ${ann.comments.length === 0
                     {/* Mic devices — list all available */}
                     {micDevices.length > 0 && (
                       <>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 14px 4px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 14px 4px' }}>
                           Microphones
                         </div>
                         {micDevices
@@ -1444,7 +1462,7 @@ ${ann.comments.length === 0
                     )}
 
                     {/* BlackHole */}
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 14px 4px' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 14px 4px' }}>
                       System audio
                     </div>
                     {micDevices.some(d => d.label.toLowerCase().includes('blackhole')) ? (
@@ -1563,7 +1581,19 @@ ${ann.comments.length === 0
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+          <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
+            {/* Dyslexic font toggle */}
+            <button
+              onClick={toggleDyslexicFont}
+              title={dyslexicFont ? 'Switch to standard font' : 'Switch to OpenDyslexic font'}
+              style={{
+                ...btnStyle(dyslexicFont ? '#0284c7' : '#475569'),
+                fontSize: 12, padding: '4px 9px',
+                ...(dyslexicFont ? { boxShadow: '0 0 0 2px #bae6fd' } : {})
+              }}
+            >
+              Aa
+            </button>
             {/* Annotation tools */}
             <span style={{ color: '#475569', fontSize: 12, alignSelf: 'center', marginRight: 4 }}>Draw:</span>
             {(['rect', 'circle', 'arrow', 'text'] as AnnotationTool[]).map(t => (
@@ -1928,7 +1958,7 @@ function AudioSourceBar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid #bae6fd' }}>
         {dot('#34d399')}
         <span style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>Webcam microphone</span>
-        <span style={{ fontSize: 11, color: '#94a3b8' }}>— live from your camera</span>
+        <span style={{ fontSize: 12, color: '#475569' }}>— live from your camera</span>
       </div>
     )
   }
@@ -1938,7 +1968,7 @@ function AudioSourceBar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid #bae6fd' }}>
         {dot('#7c3aed')}
         <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>◈ BlackHole 2ch</span>
-        <span style={{ fontSize: 11, color: '#94a3b8' }}>— capturing app audio</span>
+        <span style={{ fontSize: 12, color: '#475569' }}>— capturing app audio</span>
       </div>
     )
   }
@@ -1958,7 +1988,7 @@ function AudioSourceBar({
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 10, borderBottom: '1px solid #bae6fd' }}>
       {dot('#3b82f6')}
       <span style={{ fontSize: 11, color: '#1d4ed8', fontWeight: 600 }}>Video file audio</span>
-      <span style={{ fontSize: 11, color: '#94a3b8' }}>— use 🎙 Audio Source to change</span>
+      <span style={{ fontSize: 12, color: '#475569' }}>— use 🎙 Audio Source to change</span>
     </div>
   )
 }
@@ -1988,8 +2018,8 @@ function AudioPickerOption({
     >
       <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: active ? '#1d4ed8' : '#0f172a', lineHeight: 1.2 }}>{label}</div>
-        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{sub}</div>
+        <div style={{ fontSize: 13, fontWeight: active ? 700 : 500, color: active ? '#1d4ed8' : '#0f172a', lineHeight: 1.2 }}>{label}</div>
+        <div style={{ fontSize: 12, color: '#475569', marginTop: 1 }}>{sub}</div>
       </div>
       {active && <span style={{ color: '#3b82f6', fontSize: 14, flexShrink: 0 }}>✓</span>}
     </button>
@@ -2272,7 +2302,10 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     flexWrap: 'wrap',
     flexShrink: 0,
-    marginBottom: 8
+    marginBottom: 8,
+    minHeight: 40,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
   fileName: {
     color: '#64748b',
