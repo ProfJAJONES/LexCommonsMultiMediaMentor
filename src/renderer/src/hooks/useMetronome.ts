@@ -6,25 +6,34 @@ const TICK_MS   = 25    // scheduler polling interval (ms)
 export function useMetronome() {
   const [bpm, setBpmState] = useState<number>(() => {
     const v = Number(localStorage.getItem('mm_metro_bpm'))
-    return Number.isFinite(v) && v >= 20 && v <= 280 ? v : 100
+    return Number.isFinite(v) && v >= 20 && v <= 400 ? v : 100
   })
-  const [beatsPerMeasure, setBeatsState] = useState<number>(() => {
-    const v = Number(localStorage.getItem('mm_metro_beats'))
-    return [2, 3, 4, 6].includes(v) ? v : 4
+  // Numerator: how many clicks per measure (1–64)
+  const [numerator, setNumeratorState] = useState<number>(() => {
+    const v = Number(localStorage.getItem('mm_metro_numerator'))
+    return Number.isFinite(v) && v >= 1 && v <= 64 ? v : 4
+  })
+  // Denominator: note value of the beat (2, 4, 8, 16, 32)
+  const [denominator, setDenominatorState] = useState<number>(() => {
+    const v = Number(localStorage.getItem('mm_metro_denominator'))
+    return [2, 4, 8, 16, 32].includes(v) ? v : 4
   })
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentBeat, setCurrentBeat] = useState(-1)
+  const [muted, setMuted] = useState(false)
 
-  const ctxRef        = useRef<AudioContext | null>(null)
-  const intervalRef   = useRef<ReturnType<typeof setInterval> | null>(null)
-  const nextTimeRef   = useRef(0)
-  const nextBeatRef   = useRef(0)
-  const bpmRef        = useRef(bpm)
-  const beatsRef      = useRef(beatsPerMeasure)
-  const tapTimesRef   = useRef<number[]>([])
+  const ctxRef       = useRef<AudioContext | null>(null)
+  const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const nextTimeRef  = useRef(0)
+  const nextBeatRef  = useRef(0)
+  const bpmRef       = useRef(bpm)
+  const numRef       = useRef(numerator)
+  const mutedRef     = useRef(false)
+  const tapTimesRef  = useRef<number[]>([])
 
   useEffect(() => { bpmRef.current = bpm }, [bpm])
-  useEffect(() => { beatsRef.current = beatsPerMeasure }, [beatsPerMeasure])
+  useEffect(() => { numRef.current = numerator }, [numerator])
+  useEffect(() => { mutedRef.current = muted }, [muted])
 
   function scheduleClick(time: number, beat: number) {
     const ctx = ctxRef.current!
@@ -34,12 +43,11 @@ export function useMetronome() {
     osc.connect(gain)
     gain.connect(ctx.destination)
     osc.frequency.value = downbeat ? 1500 : 900
-    gain.gain.setValueAtTime(downbeat ? 0.9 : 0.6, time)
-    gain.gain.exponentialRampToValueAtTime(0.001, time + (downbeat ? 0.06 : 0.04))
+    const vol = mutedRef.current ? 0.0001 : (downbeat ? 0.9 : 0.6)
+    gain.gain.setValueAtTime(vol, time)
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + (downbeat ? 0.06 : 0.04))
     osc.start(time)
     osc.stop(time + 0.08)
-
-    // Fire visual update when this beat actually plays
     const delay = Math.max(0, (time - ctx.currentTime) * 1000)
     setTimeout(() => setCurrentBeat(beat), delay)
   }
@@ -50,7 +58,7 @@ export function useMetronome() {
     while (nextTimeRef.current < ctx.currentTime + LOOKAHEAD) {
       scheduleClick(nextTimeRef.current, nextBeatRef.current)
       nextTimeRef.current += 60 / bpmRef.current
-      nextBeatRef.current  = (nextBeatRef.current + 1) % beatsRef.current
+      nextBeatRef.current  = (nextBeatRef.current + 1) % numRef.current
     }
   }
 
@@ -60,8 +68,8 @@ export function useMetronome() {
     }
     const ctx = ctxRef.current
     if (ctx.state === 'suspended') ctx.resume()
-    nextTimeRef.current  = ctx.currentTime + 0.05
-    nextBeatRef.current  = 0
+    nextTimeRef.current = ctx.currentTime + 0.05
+    nextBeatRef.current = 0
     setCurrentBeat(-1)
     setIsPlaying(true)
     intervalRef.current = setInterval(scheduler, TICK_MS)
@@ -79,16 +87,23 @@ export function useMetronome() {
   }, [stop, start])
 
   const setBpm = useCallback((raw: number) => {
-    const v = Math.max(20, Math.min(280, Math.round(raw)))
+    const v = Math.max(20, Math.min(400, Math.round(raw)))
     if (!Number.isFinite(v)) return
     setBpmState(v)
     localStorage.setItem('mm_metro_bpm', String(v))
   }, [])
 
-  const setBeats = useCallback((v: number) => {
-    setBeatsState(v)
-    localStorage.setItem('mm_metro_beats', String(v))
-    nextBeatRef.current = 0 // reset beat count when signature changes
+  const setNumerator = useCallback((raw: number) => {
+    const v = Math.max(1, Math.min(64, Math.round(raw)))
+    if (!Number.isFinite(v)) return
+    setNumeratorState(v)
+    nextBeatRef.current = 0
+    localStorage.setItem('mm_metro_numerator', String(v))
+  }, [])
+
+  const setDenominator = useCallback((v: number) => {
+    setDenominatorState(v)
+    localStorage.setItem('mm_metro_denominator', String(v))
   }, [])
 
   const tap = useCallback(() => {
@@ -109,5 +124,7 @@ export function useMetronome() {
     }
   }, [])
 
-  return { bpm, setBpm, beatsPerMeasure, setBeats, isPlaying, currentBeat, toggle, tap }
+  const toggleMute = useCallback(() => setMuted(v => !v), [])
+
+  return { bpm, setBpm, numerator, setNumerator, denominator, setDenominator, isPlaying, currentBeat, muted, toggleMute, toggle, tap }
 }

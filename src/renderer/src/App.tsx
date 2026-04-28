@@ -960,6 +960,8 @@ ${ann.comments.length === 0
 
         {/* Sidebar content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
+          <Metronome />
+          <CountdownTimer />
           {activeTab === 'feedback' && (
             <FeedbackPanel
               comments={ann.comments}
@@ -1782,8 +1784,6 @@ ${ann.comments.length === 0
               hz={audio.currentPitch}
               width={graphWidth}
             />
-            <Metronome width={graphWidth} />
-            <CountdownTimer width={graphWidth} />
             <DecibelGraph
               ref={decibelGraphRef}
               samples={audio.dbHistory}
