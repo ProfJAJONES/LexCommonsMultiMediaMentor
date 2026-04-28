@@ -34,7 +34,15 @@ contextBridge.exposeInMainWorld('api', {
   saveProjectPackage: (
     webmBuffer: Uint8Array | null,
     reportHtml: string,
-    notesPayload: { fileName: string; exportedAt: string; comments: object[] },
+    notesPayload: {
+      fileName: string
+      exportedAt: string
+      comments: object[]
+      pitchData?: object[]
+      decibelData?: object[]
+      movementData?: object[]
+      narrative?: string
+    },
     slug: string
   ): Promise<string | null> =>
     ipcRenderer.invoke('desktop:saveProjectPackage', webmBuffer, reportHtml, notesPayload, slug),

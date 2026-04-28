@@ -294,7 +294,15 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
     _event,
     webmBuffer: Uint8Array | null,
     reportHtml: string,
-    notesPayload: { fileName: string; exportedAt: string; comments: Array<{ timestamp: number; author: string; tag: string; text: string }> },
+    notesPayload: {
+      fileName: string
+      exportedAt: string
+      comments: Array<{ timestamp: number; author: string; tag: string; text: string }>
+      pitchData?: Array<{ t: number; hz: number }>
+      decibelData?: Array<{ t: number; db: number }>
+      movementData?: Array<{ t: number; score: number }>
+      narrative?: string
+    },
     slug: string
   ) => {
     const dateStr = new Date().toISOString().slice(0, 10)
@@ -315,7 +323,16 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
       mkdirSync(tmpDir, { recursive: true })
 
       // ── 1. JSON (always — supports round-trip re-import) ────────────────────
-      writeFileSync(join(tmpDir, 'session-data.json'), JSON.stringify(notesPayload, null, 2), 'utf-8')
+      const fullSessionData = {
+        fileName: notesPayload.fileName,
+        exportedAt: notesPayload.exportedAt,
+        comments: notesPayload.comments ?? [],
+        pitchData: notesPayload.pitchData ?? [],
+        decibelData: notesPayload.decibelData ?? [],
+        movementData: notesPayload.movementData ?? [],
+        narrative: notesPayload.narrative ?? '',
+      }
+      writeFileSync(join(tmpDir, 'session-data.json'), JSON.stringify(fullSessionData, null, 2), 'utf-8')
 
       // ── 2. Video: WebM → MP4 ────────────────────────────────────────────────
       if (webmBuffer && webmBuffer.byteLength > 0) {

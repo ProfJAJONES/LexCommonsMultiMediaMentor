@@ -43,6 +43,8 @@ export default function App() {
   const [fileName, setFileName] = useState('')
   const [mediaMode, setMediaMode] = useState<'none' | 'file' | 'webcam'>('none')
   const webcamStreamRef = useRef<MediaStream | null>(null)
+  const webcamRecorderRef = useRef<MediaRecorder | null>(null)
+  const webcamChunksRef = useRef<Blob[]>([])
   const practiceMessagesRef = useRef<Array<{ speaker: string; text: string; timestamp: number }>>([])
   const aiMessagesRef = useRef<ChatMessage[]>([])
   const narrativeRef = useRef<string>('')
@@ -301,25 +303,48 @@ export default function App() {
     if (videoRef.current) videoRef.current.srcObject = null
   }
 
-  // Unified close: always auto-saves report + narrative, then clears.
+  // Unified close: always auto-saves report + narrative + recording, then clears.
   // Called from both the video toolbar "Close ×" and the sidebar "Close Project".
   async function handleCloseProject() {
-    const isRecording = screen.recorderState === 'recording' || screen.recorderState === 'paused'
-    const recording = isRecording ? await screen.stopAndGetBlob() : null
+    // Stop screen recorder if active
+    const isScreenRecording = screen.recorderState === 'recording' || screen.recorderState === 'paused'
+    const screenRecording = isScreenRecording ? await screen.stopAndGetBlob() : null
+
+    // Stop webcam auto-recorder and capture its bytes
+    let webcamBlob: Uint8Array | null = null
+    if (webcamRecorderRef.current && webcamRecorderRef.current.state !== 'inactive') {
+      await new Promise<void>(resolve => {
+        webcamRecorderRef.current!.onstop = () => resolve()
+        webcamRecorderRef.current!.stop()
+      })
+      const blob = new Blob(webcamChunksRef.current, { type: 'video/webm' })
+      const arr = new Uint8Array(await blob.arrayBuffer())
+      webcamBlob = arr.byteLength > 0 ? arr : null
+    }
+    webcamRecorderRef.current = null
+    webcamChunksRef.current = []
+
+    // Prefer screen recording over webcam (screen recording includes app UI + audio)
+    const videoBlob = screenRecording?.uint8 ?? webcamBlob
+
     const hasWork = ann.comments.length > 0 || ann.annotations.length > 0 ||
       audio.pitchHistory.length > 0 || aiMessagesRef.current.length > 0 ||
       practiceMessagesRef.current.length > 0 || narrativeRef.current.length > 0 ||
-      recording != null
+      videoBlob != null
 
     if (hasWork) {
       const slug = (fileName || 'session').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')
       await window.api.saveProjectPackage(
-        recording?.uint8 ?? null,
+        videoBlob ?? null,
         buildComprehensiveSessionHTML(),
         {
           fileName: fileName || 'Untitled',
           exportedAt: new Date().toLocaleString(),
-          comments: ann.comments
+          comments: ann.comments,
+          pitchData: audio.pitchHistory,
+          decibelData: audio.dbHistory,
+          movementData: movementHistory,
+          narrative: narrativeRef.current,
         },
         slug
       )
@@ -348,6 +373,11 @@ export default function App() {
     practiceMessagesRef.current = []
     aiMessagesRef.current = []
     narrativeRef.current = ''
+    if (webcamRecorderRef.current && webcamRecorderRef.current.state !== 'inactive') {
+      webcamRecorderRef.current.stop()
+    }
+    webcamRecorderRef.current = null
+    webcamChunksRef.current = []
   }
 
   async function handleWebcam() {
@@ -448,6 +478,15 @@ export default function App() {
       setCurrentTime(0)
       setMediaMode('webcam')
       startAudio(micOnly ?? undefined)
+
+      // Auto-record the webcam stream so closing always produces a saved video
+      webcamChunksRef.current = []
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus' : 'video/webm'
+      const wRec = new MediaRecorder(combined, { mimeType })
+      wRec.ondataavailable = e => { if (e.data.size > 0) webcamChunksRef.current.push(e.data) }
+      wRec.start(1000)
+      webcamRecorderRef.current = wRec
       if (!hasAudio) {
         const perms = await window.api.getMediaPermissions().catch(() => ({ camera: 'unknown', microphone: 'unknown' }))
         if (perms.microphone === 'denied') {
