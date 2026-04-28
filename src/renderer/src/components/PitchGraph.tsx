@@ -39,6 +39,18 @@ const BANDS = [
   { lo: 1046.5, hi: 2093.0, color: 'rgba(248,113,113,0.08)', label: 'Soprano'   },
 ]
 
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+
+function hzToNoteInfo(hz: number): { name: string; octave: number; cents: number } | null {
+  if (hz <= 0) return null
+  const midi = 12 * Math.log2(hz / 440) + 69
+  const midiRound = Math.round(midi)
+  const cents = Math.round((midi - midiRound) * 100)
+  const name = NOTE_NAMES[((midiRound % 12) + 12) % 12]
+  const octave = Math.floor(midiRound / 12) - 1
+  return { name, octave, cents }
+}
+
 function pitchColor(hz: number): string {
   if (hz < 130)  return '#a78bfa'  // deep bass — purple
   if (hz < 220)  return '#34d399'  // baritone — green
@@ -277,6 +289,23 @@ export const PitchGraph = forwardRef<PitchGraphHandle, Props>(function PitchGrap
               {rangeLabel(currentPitch)}
             </span>
           )}
+          {(() => {
+            const info = hzToNoteInfo(currentPitch)
+            return info ? (
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                <span style={{ color: pitchColor(currentPitch), fontFamily: 'monospace', fontWeight: 700, fontSize: 14 }}>
+                  {info.name}{info.octave}
+                </span>
+                <span style={{
+                  fontFamily: 'monospace', fontSize: 10,
+                  color: Math.abs(info.cents) <= 5 ? '#34d399' : Math.abs(info.cents) <= 15 ? '#fbbf24' : '#f87171',
+                  minWidth: 34, textAlign: 'right'
+                }}>
+                  {info.cents === 0 ? '±0¢' : `${info.cents > 0 ? '+' : ''}${info.cents}¢`}
+                </span>
+              </span>
+            ) : null
+          })()}
           <span style={{ color: pitchColor(currentPitch || 300), fontFamily: 'monospace' }}>
             {currentPitch > 0 ? `${Math.round(currentPitch)} Hz` : '—'}
           </span>

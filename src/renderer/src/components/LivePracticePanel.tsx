@@ -12,6 +12,7 @@ import {
   KOKORO_VOICES, DEFAULT_KOKORO_VOICE,
   onKokoroProgress, preloadKokoro, type KokoroProgress
 } from '../utils/kokoroTTS'
+import { countFillers, calcWpm, mergeFillerStats, type FillerStats } from '../utils/speechStats'
 
 interface Props {
   apiKey: string
@@ -94,6 +95,14 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
   const [isCoachAnalyzing, setIsCoachAnalyzing] = useState(false)
   const coachAbortRef = useRef<AbortController | null>(null)
 
+  // Speech stats — accumulated across all student turns in the session
+  const [sessionStats, setSessionStats] = useState<{
+    turnCount: number
+    totalWords: number
+    totalDurationMs: number
+    fillers: FillerStats
+  }>({ turnCount: 0, totalWords: 0, totalDurationMs: 0, fillers: { total: 0, breakdown: {} } })
+
   // Refs for always-fresh values inside effects/callbacks — avoids stale closure bugs
   const characterRef = useRef(character)
   const kbRef = useRef(kb)
@@ -160,6 +169,16 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
       wasListeningRef.current = false
       const text = speech.getTranscript()
       if (text && !practiceRef.current.isResponding) {
+        // Accumulate speech stats for this turn
+        const wpm = calcWpm(text, speech.lastRecordingDurationMs)
+        const fillers = countFillers(text)
+        setSessionStats(prev => ({
+          turnCount: prev.turnCount + 1,
+          totalWords: prev.totalWords + text.trim().split(/\s+/).filter(Boolean).length,
+          totalDurationMs: prev.totalDurationMs + speech.lastRecordingDurationMs,
+          fillers: mergeFillerStats(prev.fillers, fillers)
+        }))
+        void wpm  // used in display below via sessionStats
         setInput('')
         const eff = applyBenchTemp(characterRef.current, benchTempRef.current)
         practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock(characterRef.current.id))
@@ -435,6 +454,12 @@ ${rows}
     coachAbortRef.current?.abort()
     setCoachNote(null)
     setIsCoachAnalyzing(false)
+    // Stats persist after session ends so the user can review them
+  }
+
+  function handleReset() {
+    practice.reset()
+    setSessionStats({ turnCount: 0, totalWords: 0, totalDurationMs: 0, fillers: { total: 0, breakdown: {} } })
   }
 
   // Primary speech button — tap to start, tap again to stop (auto-send handled by useEffect above)
@@ -503,7 +528,7 @@ ${rows}
           {!practice.sessionActive && practice.messages.length > 0 && (
             <>
               <button onClick={handleSave} style={hdrBtn(false)} title="Save session transcript">💾 Save</button>
-              <button onClick={practice.reset} style={hdrBtn(false)}>↺ Reset</button>
+              <button onClick={handleReset} style={hdrBtn(false)}>↺ Reset</button>
             </>
           )}
         </div>
@@ -778,6 +803,37 @@ ${rows}
               <button onClick={() => setTtsFallbackReason(null)} style={{ background: 'none', border: 'none', color: '#92400e', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}>✕</button>
             </div>
           )}
+
+          {/* Speech stats bar */}
+          {sessionStats.turnCount > 0 && (() => {
+            const avgWpm = sessionStats.totalDurationMs > 0
+              ? Math.round(sessionStats.totalWords / (sessionStats.totalDurationMs / 60000))
+              : 0
+            const top3 = Object.entries(sessionStats.fillers.breakdown)
+              .sort((a, b) => b[1] - a[1]).slice(0, 3)
+            return (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 9px', fontSize: 10, color: '#475569', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, color: '#0284c7' }}>📊</span>
+                {avgWpm > 0 && (
+                  <span><span style={{ fontWeight: 700 }}>{avgWpm}</span> WPM avg</span>
+                )}
+                {sessionStats.fillers.total > 0 && (
+                  <span>
+                    <span style={{ fontWeight: 700, color: '#dc2626' }}>{sessionStats.fillers.total}</span> filler{sessionStats.fillers.total !== 1 ? 's' : ''}
+                    {top3.length > 0 && (
+                      <span style={{ color: '#94a3b8' }}>
+                        {' '}({top3.map(([k, v]) => `"${k}" ×${v}`).join(', ')})
+                      </span>
+                    )}
+                  </span>
+                )}
+                {sessionStats.fillers.total === 0 && avgWpm > 0 && (
+                  <span style={{ color: '#34d399', fontWeight: 600 }}>No fillers detected</span>
+                )}
+                <span style={{ color: '#cbd5e1' }}>{sessionStats.turnCount} turn{sessionStats.turnCount !== 1 ? 's' : ''}</span>
+              </div>
+            )
+          })()}
 
           {/* Input area */}
           <div style={s.inputArea}>

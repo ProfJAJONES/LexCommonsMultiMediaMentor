@@ -15,6 +15,7 @@ import { ReportPanel } from './components/ReportPanel'
 import { LivePracticePanel } from './components/LivePracticePanel'
 import { BodyTracker } from './components/BodyTracker'
 import { Metronome } from './components/Metronome'
+import { CountdownTimer } from './components/CountdownTimer'
 import { BlackHoleSetup } from './components/BlackHoleSetup'
 import { useAudioAnalysis } from './hooks/useAudioAnalysis'
 import { useAnnotations } from './hooks/useAnnotations'
@@ -1782,6 +1783,7 @@ ${ann.comments.length === 0
               width={graphWidth}
             />
             <Metronome width={graphWidth} />
+            <CountdownTimer width={graphWidth} />
             <DecibelGraph
               ref={decibelGraphRef}
               samples={audio.dbHistory}

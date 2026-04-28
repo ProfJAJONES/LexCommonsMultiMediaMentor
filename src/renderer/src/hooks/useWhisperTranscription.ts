@@ -50,6 +50,8 @@ export function useWhisperTranscription() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const transcriptRef = useRef('')  // final result, readable via getTranscript()
+  const recordingStartRef = useRef<number>(0)
+  const [lastRecordingDurationMs, setLastRecordingDurationMs] = useState(0)
 
   // isListening = true during recording OR transcribing — matches the old hook's
   // semantics so LivePracticePanel's useEffect auto-send logic is unchanged.
@@ -116,6 +118,8 @@ export function useWhisperTranscription() {
     }
 
     recorder.onstop = async () => {
+      const durationMs = Date.now() - recordingStartRef.current
+      setLastRecordingDurationMs(durationMs)
       stream.getTracks().forEach(t => t.stop())
       setPhase('transcribing')
       setLiveTranscript('Transcribing…')
@@ -157,6 +161,7 @@ export function useWhisperTranscription() {
     }
 
     mediaRecorderRef.current = recorder
+    recordingStartRef.current = Date.now()
     recorder.start()
     setPhase('recording')
     setLiveTranscript('')
@@ -191,6 +196,7 @@ export function useWhisperTranscription() {
     liveTranscript,
     micError,
     modelStatus,
+    lastRecordingDurationMs,
     start,
     stop,
     abort,
