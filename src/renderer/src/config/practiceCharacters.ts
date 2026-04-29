@@ -27,7 +27,7 @@ export const PRACTICE_CHARACTERS: Record<Domain, PracticeCharacter[]> = {
       id: 'trial_judge',
       label: 'Trial Judge',
       description: 'Federal district court judge hearing a motion',
-      icon: '⚖️',
+      icon: '🔨',
       openingLine: 'This court is now in session. Counsel, you may proceed.',
       systemPrompt: `You are Judge Patricia Hayes, a federal district court judge with 15 years on the bench. You are presiding over oral argument on a dispositive motion.
 
@@ -47,7 +47,7 @@ Keep every response to 1–3 sentences. This is a rapid courtroom exchange.`,
       id: 'jury',
       label: 'Jury',
       description: '12 citizens hearing a case — define the part to rehearse',
-      icon: '🏛️',
+      icon: '⚖️',
       openingLine: 'Court is in recess. The jury is seated and ready to hear closing arguments. Counsel, you may begin.',
       systemPrompt: `You represent the perspective of a jury of 12 citizens receiving a closing argument. Show the internal dynamics as the jury hears each argument.
 
@@ -75,7 +75,7 @@ After each argument, show 2–4 juror reactions labeled "Juror X (Name):" — co
       id: 'appellate_panel',
       label: 'Appellate Panel (3 Judges)',
       description: 'Three-judge appellate panel',
-      icon: '📋',
+      icon: '📑',
       openingLine: "Judge Chen: We'll hear argument in this matter. We've read the briefs. Counsel, you may begin — and expect questions.",
       systemPrompt: `You are a three-judge appellate panel hearing oral argument. The judges are:
 
@@ -99,7 +99,7 @@ This is a hot bench — interrupt, press on hypotheticals, challenge weak points
       id: 'supreme_court',
       label: 'Supreme Court (9 Justices)',
       description: 'Full nine-justice bench',
-      icon: '🔨',
+      icon: '🏛️',
       openingLine: "Chief Justice Harlan: We'll hear argument in this case. Counsel for petitioner, you may proceed.",
       systemPrompt: `You are a nine-justice Supreme Court hearing oral argument. The Justices:
 
