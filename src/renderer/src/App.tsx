@@ -1176,7 +1176,7 @@ ${ann.comments.length === 0
 
           {/* Drawer content */}
           {showSettingsDrawer && (
-            <div style={{ background: 'var(--bg-surface)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', maxHeight: '60vh' }}>
+            <div style={{ background: 'var(--bg-surface)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
 
               {/* Accessibility */}
               <div>
@@ -1302,7 +1302,11 @@ ${ann.comments.length === 0
                 />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 1, marginBottom: 4 }}>
                   {([1, 2, 3, 4, 5] as KnowledgeScope[]).map(n => (
-                    <span key={n} style={{ fontSize: 12, color: ai.knowledgeScope === n ? '#1d4ed8' : '#475569', fontWeight: ai.knowledgeScope === n ? 700 : 400, cursor: 'pointer', textAlign: 'center', width: '20%' }}
+                    <span key={n} style={{ fontSize: 18, cursor: 'pointer', textAlign: 'center', width: '20%', display: 'inline-block',
+                      opacity: ai.knowledgeScope === n ? 1 : 0.45,
+                      transform: ai.knowledgeScope === n ? 'scale(1.25)' : 'scale(1)',
+                      transition: 'transform 0.12s, opacity 0.12s'
+                    }}
                       onClick={() => ai.saveKnowledgeScope(n)}>
                       {SCOPE_LABELS[n].icon}
                     </span>
@@ -2318,7 +2322,8 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--bg-card)',
     display: 'flex',
     flexDirection: 'column',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    overflowY: 'auto'
   },
   sidebarHeader: {
     display: 'flex',
