@@ -1,4 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+
+function renderIcon(icon: string, sizePx: number): React.ReactNode {
+  if (icon === '__gavel__') {
+    const s = sizePx
+    return (
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+        {/* Gavel head */}
+        <rect x="1" y="6" width="13" height="5.5" rx="1.5"
+          transform="rotate(-45 7.5 8.75)" />
+        {/* Handle */}
+        <rect x="11.5" y="10.5" width="3" height="10" rx="1.5"
+          transform="rotate(-45 13 15.5)" />
+        {/* Sound block */}
+        <rect x="1" y="19" width="10" height="3" rx="1" />
+      </svg>
+    )
+  }
+  return icon
+}
 import type { Domain } from '../hooks/useDomain'
 import { DOMAIN_CONFIG } from '../hooks/useDomain'
 import { PRACTICE_CHARACTERS, type PracticeCharacter } from '../config/practiceCharacters'
@@ -588,7 +607,7 @@ ${rows}
                         color: '#3b82f6', fontSize: 16, lineHeight: 1
                       }}>✓</span>
                     )}
-                    <div style={{ fontSize: 96, lineHeight: 1, marginBottom: 8 }}>{c.icon}</div>
+                    <div style={{ fontSize: 96, lineHeight: 1, marginBottom: 8, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>{renderIcon(c.icon, 80)}</div>
                     <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</div>
                     <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 3, lineHeight: 1.35 }}>{c.description}</div>
                   </button>
@@ -707,7 +726,7 @@ ${rows}
               marginTop: 10
             }}
           >
-            {character.icon} Start Session
+            {renderIcon(character.icon, 18)} Start Session
           </button>
         </div>
       )}
@@ -754,7 +773,7 @@ ${rows}
                 {cameraStream ? '📷 On' : '📷 Off'}
               </button>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.3 }}>{character.icon}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.3 }}>{renderIcon(character.icon, 14)}</div>
                 <div style={{ color: 'var(--text-medium)', fontSize: 9, fontWeight: 700, marginTop: 1 }}>{character.label}</div>
               </div>
             </div>
@@ -1070,7 +1089,7 @@ function PracticeMessageBubble({ message: m, character, isFirst, streaming }: {
         marginTop: 2,
         boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
       }}>
-        {isStudent ? '👤' : (speakerLabel === character.label ? character.icon : initials)}
+        {isStudent ? '👤' : (speakerLabel === character.label ? renderIcon(character.icon, 16) : initials)}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: isStudent ? 'flex-end' : 'flex-start', gap: 2, maxWidth: '85%' }}>

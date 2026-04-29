@@ -27,7 +27,7 @@ export const PRACTICE_CHARACTERS: Record<Domain, PracticeCharacter[]> = {
       id: 'trial_judge',
       label: 'Trial Judge',
       description: 'Federal district court judge hearing a motion',
-      icon: '🔨',
+      icon: '__gavel__',
       openingLine: 'This court is now in session. Counsel, you may proceed.',
       systemPrompt: `You are Judge Patricia Hayes, a federal district court judge with 15 years on the bench. You are presiding over oral argument on a dispositive motion.
 
