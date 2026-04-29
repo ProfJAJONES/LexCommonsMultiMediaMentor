@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import type { SigningState } from './BodyTracker'
 
 function renderIcon(icon: string, sizePx: number): React.ReactNode {
   if (icon === '__gavel__') {
@@ -41,11 +42,13 @@ interface Props {
   /** ElevenLabs API key for voice synthesis. When empty, falls back to browser TTS. */
   elevenLabsKey?: string
   onSessionData?: (messages: Array<{ speaker: string; text: string; timestamp: number }>) => void
+  /** When domain is 'asl', called at send-time to get the latest tracker snapshot */
+  getSigningState?: () => SigningState | null
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, elevenLabsKey, onSessionData }: Props) {
+export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, elevenLabsKey, onSessionData, getSigningState }: Props) {
   const characters = PRACTICE_CHARACTERS[domain]
   const [character, setCharacter] = useState<PracticeCharacter>(characters[0])
   const [ttsEnabled, setTtsEnabled] = useState(false)
@@ -518,12 +521,27 @@ ${rows}
     setInput('')
     const fillers = countFillers(text)
     const eff = applyBenchTemp(character, benchTemp)
+
+    // For ASL sessions, prepend live tracker data to the API message so the
+    // character can see objective signing metrics — UI text stays as typed.
+    const signing = getSigningState?.()
+    const signingContext = signing
+      ? [
+          `[Signing tracker — live data at time of this message]`,
+          `Hands visible: ${signing.handsDetected}`,
+          `Signing space usage: ${signing.signingSpaceUsage}%`,
+          `Non-manual markers: ${signing.expression ?? 'not yet analysed'}`,
+          `Signing energy (0–100): ${signing.movementScore}`,
+          `---`,
+        ].join('\n')
+      : undefined
+
     practiceRef.current.sendTurn(text, eff, kbRef.current.toPromptBlock(character.id), {
       wpm: 0,
       fillerCount: fillers.total,
       fillerBreakdown: fillers.breakdown
-    })
-  }, [input, speech, character, benchTemp]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, signingContext)
+  }, [input, speech, character, benchTemp, getSigningState]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {

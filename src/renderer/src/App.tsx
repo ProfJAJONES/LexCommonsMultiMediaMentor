@@ -14,6 +14,7 @@ import { AIFeedbackPanel } from './components/AIFeedbackPanel'
 import { ReportPanel } from './components/ReportPanel'
 import { LivePracticePanel } from './components/LivePracticePanel'
 import { BodyTracker } from './components/BodyTracker'
+import type { SigningState } from './components/BodyTracker'
 import { Metronome } from './components/Metronome'
 import { CountdownTimer } from './components/CountdownTimer'
 import { BlackHoleSetup } from './components/BlackHoleSetup'
@@ -53,6 +54,7 @@ export default function App() {
   const [videoDimensions, setVideoDimensions] = useState({ w: 0, h: 0 })
   const [videoDuration, setVideoDuration] = useState(0)
   const [movementHistory, setMovementHistory] = useState<{ t: number; score: number }[]>([])
+  const signingStateRef = useRef<SigningState | null>(null)
   const [activeTool, setActiveTool] = useState<AnnotationTool>(null)
   const [activeColor, setActiveColor] = useState(COLORS[0])
   const [showAnnotationOverlay, setShowAnnotationOverlay] = useState(true)
@@ -1095,6 +1097,7 @@ ${ann.comments.length === 0
               selectedCameraId={selectedCameraId}
               elevenLabsKey={ai.elevenLabsKey}
               onSessionData={msgs => { practiceMessagesRef.current = msgs }}
+              getSigningState={domain === 'asl' ? () => signingStateRef.current : undefined}
             />
           )}
           {activeTab === 'camera' && (
@@ -1929,7 +1932,7 @@ ${ann.comments.length === 0
 
               {/* Body tracker */}
               <div style={{ flexShrink: 0 }}>
-                <BodyTracker sourceVideoRef={videoRef} width={bodyTrackerWidth} height={260} apiKey={ai.apiKey} signingMode={domain === 'asl'} onMovementSample={handleMovementSample} />
+                <BodyTracker sourceVideoRef={videoRef} width={bodyTrackerWidth} height={260} apiKey={ai.apiKey} signingMode={domain === 'asl'} onMovementSample={handleMovementSample} onSigningState={s => { signingStateRef.current = s }} />
               </div>
             </div>
 

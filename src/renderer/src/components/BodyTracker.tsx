@@ -38,6 +38,13 @@ const HAND_COLOR_R = '#34d399'   // right hand — green
 const HAND_COLOR_L = '#f97316'   // left hand — orange
 const CONFIDENCE_THRESHOLD = 0.3
 
+export interface SigningState {
+  handsDetected: number
+  signingSpaceUsage: number
+  expression: string | null
+  movementScore: number
+}
+
 interface Props {
   sourceVideoRef: React.RefObject<HTMLVideoElement | null>
   width?: number
@@ -45,9 +52,10 @@ interface Props {
   apiKey?: string
   signingMode?: boolean
   onMovementSample?: (t: number, score: number) => void
+  onSigningState?: (state: SigningState) => void
 }
 
-export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey, signingMode = false, onMovementSample }: Props) {
+export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey, signingMode = false, onMovementSample, onSigningState }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const detectorRef = useRef<poseDetection.PoseDetector | null>(null)
   const handDetectorRef = useRef<handPoseDetection.HandDetector | null>(null)
@@ -64,6 +72,11 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
   const [signingSpaceUsage, setSigningSpaceUsage] = useState(0)
   const prevKeypoints = useRef<poseDetection.Keypoint[]>([])
   const prevHandWrists = useRef<{ x: number; y: number }[]>([])
+
+  // Refs that mirror state — readable synchronously inside the rAF loop
+  const handsDetectedRef = useRef(0)
+  const signingSpaceUsageRef = useRef(0)
+  const expressionRef = useRef<string | null>(null)
 
   // Facial / non-manual marker expression state
   const [expression, setExpression] = useState<string | null>(null)
@@ -98,7 +111,7 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
         }]
       })
       const text = resp.content[0].type === 'text' ? resp.content[0].text.trim() : null
-      if (text) setExpression(text)
+      if (text) { setExpression(text); expressionRef.current = text }
     } catch {
       // silently ignore expression API errors
     }
@@ -158,7 +171,7 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
               }
             }
             const usage = totalHandPoints > 0 ? Math.round((handPointsInBox / totalHandPoints) * 100) : 0
-            setSigningSpaceUsage(usage)
+            setSigningSpaceUsage(usage); signingSpaceUsageRef.current = usage
           }
         }
       }
@@ -220,7 +233,7 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
     }
 
     // Draw hand skeletons (MediaPipe Hands)
-    setHandsDetected(hands.length)
+    setHandsDetected(hands.length); handsDetectedRef.current = hands.length
     for (const hand of hands) {
       const isRight = hand.handedness === 'Right'
       const color = isRight ? HAND_COLOR_R : HAND_COLOR_L
@@ -271,21 +284,25 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
       drawFrame(poses, hands, video.videoWidth, video.videoHeight)
     } catch { /* ignore dropped frame */ }
 
-    // Emit movement sample ~once per second
-    if (onMovementSample) {
-      const now = Date.now()
-      if (now - lastSampleMsRef.current >= 1000) {
-        lastSampleMsRef.current = now
-        const vt = video.currentTime
-        const t = (typeof vt === 'number' && isFinite(vt) && vt > 0)
-          ? vt
-          : (performance.now() - detectionStartMsRef.current) / 1000
-        onMovementSample(t, movementScoreRef.current)
-      }
+    // Emit movement sample + signing state ~once per second
+    const now = Date.now()
+    if (now - lastSampleMsRef.current >= 1000) {
+      lastSampleMsRef.current = now
+      const vt = video.currentTime
+      const t = (typeof vt === 'number' && isFinite(vt) && vt > 0)
+        ? vt
+        : (performance.now() - detectionStartMsRef.current) / 1000
+      onMovementSample?.(t, movementScoreRef.current)
+      onSigningState?.({
+        handsDetected: handsDetectedRef.current,
+        signingSpaceUsage: signingSpaceUsageRef.current,
+        expression: expressionRef.current,
+        movementScore: movementScoreRef.current,
+      })
     }
 
     rafRef.current = requestAnimationFrame(runDetection)
-  }, [sourceVideoRef, drawFrame, onMovementSample])
+  }, [sourceVideoRef, drawFrame, onMovementSample, onSigningState])
 
   const start = useCallback(async () => {
     setLoading(true)
@@ -335,9 +352,9 @@ export function BodyTracker({ sourceVideoRef, width = 260, height = 340, apiKey,
     setMovementScore(0)
     movementScoreRef.current = 0
     lastSampleMsRef.current = 0
-    setExpression(null)
-    setHandsDetected(0)
-    setSigningSpaceUsage(0)
+    setExpression(null); expressionRef.current = null
+    setHandsDetected(0); handsDetectedRef.current = 0
+    setSigningSpaceUsage(0); signingSpaceUsageRef.current = 0
     prevKeypoints.current = []
     prevHandWrists.current = []
     const canvas = canvasRef.current

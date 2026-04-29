@@ -64,7 +64,8 @@ export function useLivePractice(apiKey: string, provider: AIProvider = 'anthropi
     studentText: string,
     character: PracticeCharacter,
     knowledgeBlock: string,
-    speechStats?: { wpm: number; fillerCount: number; fillerBreakdown: Record<string, number> }
+    speechStats?: { wpm: number; fillerCount: number; fillerBreakdown: Record<string, number> },
+    signingContext?: string
   ) => {
     if (!apiKey.trim() || !studentText.trim()) return
 
@@ -105,7 +106,12 @@ export function useLivePractice(apiKey: string, provider: AIProvider = 'anthropi
           }
           apiMessages.push({ role: 'assistant', content: m.text })
         } else {
-          apiMessages.push({ role: 'user', content: m.text })
+          // For the last student turn, prepend live signing tracker data if provided
+          const isLastMsg = m === currentMsgs[currentMsgs.length - 1]
+          const content = (isLastMsg && signingContext)
+            ? `${signingContext}\n\nSigner says: "${m.text}"`
+            : m.text
+          apiMessages.push({ role: 'user', content })
         }
       }
 
