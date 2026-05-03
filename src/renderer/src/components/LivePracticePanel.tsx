@@ -39,6 +39,7 @@ interface Props {
   provider: AIProvider
   domain: Domain
   selectedCameraId?: string
+  selectedMicId?: string
   /** ElevenLabs API key for voice synthesis. When empty, falls back to browser TTS. */
   elevenLabsKey?: string
   onSessionData?: (messages: Array<{ speaker: string; text: string; timestamp: number }>) => void
@@ -48,7 +49,7 @@ interface Props {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, elevenLabsKey, onSessionData, getSigningState }: Props) {
+export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, selectedMicId, elevenLabsKey, onSessionData, getSigningState }: Props) {
   const characters = PRACTICE_CHARACTERS[domain]
   const [character, setCharacter] = useState<PracticeCharacter>(characters[0])
   const [ttsEnabled, setTtsEnabled] = useState(false)
@@ -509,7 +510,7 @@ ${rows}
       speech.stop()
     } else {
       setInput('')
-      speech.start()
+      speech.start(selectedMicId)
     }
   }
 

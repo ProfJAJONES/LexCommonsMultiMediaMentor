@@ -71,14 +71,17 @@ export function useWhisperTranscription() {
     }
   }, [modelStatus])
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (micDeviceId?: string) => {
     setMicError(null)
     transcriptRef.current = ''
     setLiveTranscript('')
 
     let stream: MediaStream
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const audioConstraint = micDeviceId
+        ? { deviceId: { exact: micDeviceId } }
+        : true
+      stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint })
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e))
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {

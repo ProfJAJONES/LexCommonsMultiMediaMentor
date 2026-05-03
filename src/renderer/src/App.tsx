@@ -1214,6 +1214,7 @@ ${ann.comments.length === 0
               provider={ai.provider}
               domain={domain}
               selectedCameraId={selectedCameraId}
+              selectedMicId={selectedMicId}
               elevenLabsKey={ai.elevenLabsKey}
               onSessionData={msgs => { practiceMessagesRef.current = msgs }}
               getSigningState={domain === 'asl' ? () => signingStateRef.current : undefined}
