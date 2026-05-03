@@ -56,26 +56,33 @@ export function useScreenRecorder() {
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d')!
 
+        // Attach both videos to the DOM (hidden) so Chromium actually decodes
+        // frames — off-screen video elements with desktop-capture srcObjects
+        // often produce blank frames in canvas.drawImage without this.
+        const hiddenStyle = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;pointer-events:none'
+
         const dispVid = document.createElement('video')
-        dispVid.srcObject = videoStream
         dispVid.muted = true
-        dispVid.setAttribute('playsinline', '')
+        dispVid.srcObject = videoStream
+        dispVid.style.cssText = hiddenStyle
+        document.body.appendChild(dispVid)
 
         const pipVid = document.createElement('video')
-        pipVid.srcObject = pipStream
         pipVid.muted = true
-        pipVid.setAttribute('playsinline', '')
+        pipVid.srcObject = pipStream
+        pipVid.style.cssText = hiddenStyle
+        document.body.appendChild(pipVid)
 
+        // play() without load() — srcObject doesn't need load(); calling it can
+        // reset the media element and interfere with the stream.
         await Promise.all([
-          new Promise<void>(res => {
-            dispVid.onloadedmetadata = () => { dispVid.play().then(() => res()).catch(() => res()) }
-            dispVid.load()
-          }),
-          new Promise<void>(res => {
-            pipVid.onloadedmetadata = () => { pipVid.play().then(() => res()).catch(() => res()) }
-            pipVid.load()
-          }),
+          dispVid.play().catch(() => {}),
+          pipVid.play().catch(() => {}),
         ])
+
+        // Wait one rAF so Chromium delivers the first decoded frame and
+        // populates videoWidth/videoHeight before we size the canvas.
+        await new Promise<void>(r => requestAnimationFrame(() => r()))
 
         canvas.width  = dispVid.videoWidth  || 1920
         canvas.height = dispVid.videoHeight || 1080
@@ -116,8 +123,8 @@ export function useScreenRecorder() {
         canvasStreamRef.current = cs
         canvasCleanupRef.current = () => {
           cancelAnimationFrame(rafId)
-          dispVid.pause(); dispVid.srcObject = null
-          pipVid.pause(); pipVid.srcObject = null
+          dispVid.pause(); dispVid.srcObject = null; dispVid.remove()
+          pipVid.pause(); pipVid.srcObject = null; pipVid.remove()
         }
         recordVideoStream = cs
       } catch {
