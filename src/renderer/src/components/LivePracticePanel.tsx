@@ -68,6 +68,17 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
     return Number.isFinite(saved) && saved >= 80 ? saved : 120
   })
 
+  // Whisper model size — declared before useWhisperTranscription so it is
+  // initialized by the time the hook reads it.
+  const [whisperModel, setWhisperModel] = useState<WhisperModelSize>(() =>
+    (localStorage.getItem('mm_whisper_model') as WhisperModelSize | null) ?? 'tiny'
+  )
+
+  function changeWhisperModel(size: WhisperModelSize) {
+    setWhisperModel(size)
+    localStorage.setItem('mm_whisper_model', size)
+  }
+
   // Conversation
   const practice = useLivePractice(apiKey, provider)
   const speech = useWhisperTranscription(whisperModel)
@@ -148,17 +159,6 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
     const next = inputMode === 'voice' ? 'text' : 'voice'
     setInputMode(next)
     localStorage.setItem('mm_input_mode', next)
-  }
-
-  // Whisper model size — tiny is fast/small, base is ~2× larger but handles
-  // voice-over-instruments and noisy environments much better.
-  const [whisperModel, setWhisperModel] = useState<WhisperModelSize>(() =>
-    (localStorage.getItem('mm_whisper_model') as WhisperModelSize | null) ?? 'tiny'
-  )
-
-  function changeWhisperModel(size: WhisperModelSize) {
-    setWhisperModel(size)
-    localStorage.setItem('mm_whisper_model', size)
   }
 
   // Bench temperature (appellate / SCOTUS only)
