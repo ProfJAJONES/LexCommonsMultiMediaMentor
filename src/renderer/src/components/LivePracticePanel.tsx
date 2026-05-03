@@ -52,7 +52,7 @@ interface Props {
 export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, selectedMicId, elevenLabsKey, onSessionData, getSigningState }: Props) {
   const characters = PRACTICE_CHARACTERS[domain]
   const [character, setCharacter] = useState<PracticeCharacter>(characters[0])
-  const [ttsEnabled, setTtsEnabled] = useState(false)
+  const [ttsEnabled, setTtsEnabled] = useState(true)
   const [input, setInput] = useState('')
 
   // Camera
