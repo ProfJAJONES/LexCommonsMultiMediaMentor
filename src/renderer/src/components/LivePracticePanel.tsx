@@ -23,7 +23,7 @@ import type { Domain } from '../hooks/useDomain'
 import { DOMAIN_CONFIG } from '../hooks/useDomain'
 import { PRACTICE_CHARACTERS, type PracticeCharacter } from '../config/practiceCharacters'
 import { useLivePractice, type PracticeMessage } from '../hooks/useLivePractice'
-import { useWhisperTranscription } from '../hooks/useWhisperTranscription'
+import { useWhisperTranscription, type WhisperModelSize } from '../hooks/useWhisperTranscription'
 import { useAIKnowledgeBase } from '../hooks/useAIKnowledgeBase'
 import { streamCompletion, type AIProvider } from '../utils/aiClient'
 import { speak as speakTTS, cancelSpeech } from '../utils/elevenLabsTTS'
@@ -45,11 +45,13 @@ interface Props {
   onSessionData?: (messages: Array<{ speaker: string; text: string; timestamp: number }>) => void
   /** When domain is 'asl', called at send-time to get the latest tracker snapshot */
   getSigningState?: () => SigningState | null
+  /** Called when the student taps the speak button to start recording their turn */
+  onStudentStartedSpeaking?: () => void
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, selectedMicId, elevenLabsKey, onSessionData, getSigningState }: Props) {
+export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, selectedMicId, elevenLabsKey, onSessionData, getSigningState, onStudentStartedSpeaking }: Props) {
   const characters = PRACTICE_CHARACTERS[domain]
   const [character, setCharacter] = useState<PracticeCharacter>(characters[0])
   const [ttsEnabled, setTtsEnabled] = useState(true)
@@ -68,7 +70,7 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
 
   // Conversation
   const practice = useLivePractice(apiKey, provider)
-  const speech = useWhisperTranscription()
+  const speech = useWhisperTranscription(whisperModel)
   const kb = useAIKnowledgeBase(domain)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -146,6 +148,17 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
     const next = inputMode === 'voice' ? 'text' : 'voice'
     setInputMode(next)
     localStorage.setItem('mm_input_mode', next)
+  }
+
+  // Whisper model size — tiny is fast/small, base is ~2× larger but handles
+  // voice-over-instruments and noisy environments much better.
+  const [whisperModel, setWhisperModel] = useState<WhisperModelSize>(() =>
+    (localStorage.getItem('mm_whisper_model') as WhisperModelSize | null) ?? 'tiny'
+  )
+
+  function changeWhisperModel(size: WhisperModelSize) {
+    setWhisperModel(size)
+    localStorage.setItem('mm_whisper_model', size)
   }
 
   // Bench temperature (appellate / SCOTUS only)
@@ -553,6 +566,7 @@ ${rows}
       speech.stop()
     } else {
       setInput('')
+      onStudentStartedSpeaking?.()
       speech.start(selectedMicId)
     }
   }
@@ -806,6 +820,44 @@ ${rows}
               {kokoroProgress.status === 'ready' ? '🟢 Kokoro voice model ready' : 'Kokoro voices · ~82 MB download on first use'}
             </div>
           )}
+
+          {/* Transcription quality selector */}
+          <div style={{ padding: '6px 10px', background: 'var(--bg-surface)', borderRadius: 7, border: '1px solid var(--border-light)' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>
+              Voice Transcription Quality
+            </div>
+            <div style={{ display: 'flex', gap: 5 }}>
+              {(['tiny', 'base'] as const).map(sz => (
+                <button
+                  key={sz}
+                  onClick={() => changeWhisperModel(sz)}
+                  style={{
+                    flex: 1,
+                    background: whisperModel === sz ? '#eff6ff' : '#fff',
+                    border: `1.5px solid ${whisperModel === sz ? '#3b82f6' : '#e2e8f0'}`,
+                    borderRadius: 6,
+                    color: whisperModel === sz ? '#1d4ed8' : '#64748b',
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '5px 4px'
+                  }}
+                >
+                  {sz === 'tiny' ? 'Fast (Tiny)' : 'Accurate (Base)'}
+                </button>
+              ))}
+            </div>
+            <div style={{ color: 'var(--text-faint)', fontSize: 10, marginTop: 4 }}>
+              {whisperModel === 'tiny'
+                ? 'Fast, ~75 MB · good for clear speech in quiet rooms'
+                : 'Better accuracy, ~140 MB · handles background instruments and noise'}
+            </div>
+            {domain === 'music' && (
+              <div style={{ color: '#92400e', fontSize: 10, marginTop: 4, padding: '3px 6px', background: '#fffbeb', borderRadius: 4, border: '1px solid #fde68a' }}>
+                Tip: "Accurate" mode works much better when speaking over or near instruments. Use Text mode (⌨) to describe your playing without transcription.
+              </div>
+            )}
+          </div>
 
           {noApiKey && (
             <div style={{ color: '#dc2626', fontSize: 11, marginTop: 8, padding: '6px 8px', background: '#fef2f2', borderRadius: 5, border: '1px solid #fca5a5' }}>

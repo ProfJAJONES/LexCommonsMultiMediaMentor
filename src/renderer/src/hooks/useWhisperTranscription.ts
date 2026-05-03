@@ -14,13 +14,21 @@ import { useCallback, useRef, useState } from 'react'
 type ModelStatus = 'idle' | 'loading' | 'ready'
 type Phase = 'idle' | 'recording' | 'transcribing'
 
-// Singleton pipeline — load once, reuse across renders / hook instances
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let pipelinePromise: Promise<any> | null = null
+export type WhisperModelSize = 'tiny' | 'base'
 
-async function getPipeline() {
-  if (!pipelinePromise) {
-    pipelinePromise = (async () => {
+// Per-model singleton pipelines — keyed by model size so switching sizes
+// doesn't discard an already-loaded model.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pipelinePromises: Partial<Record<WhisperModelSize, Promise<any>>> = {}
+
+const MODEL_IDS: Record<WhisperModelSize, string> = {
+  tiny: 'Xenova/whisper-tiny.en',
+  base: 'Xenova/whisper-base.en',
+}
+
+async function getPipeline(size: WhisperModelSize = 'tiny') {
+  if (!pipelinePromises[size]) {
+    pipelinePromises[size] = (async () => {
       // Dynamic import keeps this out of the initial bundle
       const { pipeline, env } = await import('@huggingface/transformers')
       // Allow the model to be fetched from HuggingFace and cached locally
@@ -33,15 +41,15 @@ async function getPipeline() {
       // through to device defaults when filename keys don't match — string form
       // bypasses that and forces unquantized files (~150MB total, cached after
       // first run, fully offline thereafter).
-      return pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+      return pipeline('automatic-speech-recognition', MODEL_IDS[size], {
         dtype: 'fp32'
       })
     })()
   }
-  return pipelinePromise
+  return pipelinePromises[size]
 }
 
-export function useWhisperTranscription() {
+export function useWhisperTranscription(modelSize: WhisperModelSize = 'tiny') {
   const [phase, setPhase] = useState<Phase>('idle')
   const [modelStatus, setModelStatus] = useState<ModelStatus>('idle')
   const [liveTranscript, setLiveTranscript] = useState('')
@@ -63,13 +71,13 @@ export function useWhisperTranscription() {
     if (modelStatus !== 'idle') return
     setModelStatus('loading')
     try {
-      await getPipeline()
+      await getPipeline(modelSize)
       setModelStatus('ready')
     } catch (e) {
       setModelStatus('idle')
       console.warn('Whisper model preload failed:', e)
     }
-  }, [modelStatus])
+  }, [modelStatus, modelSize])
 
   const start = useCallback(async (micDeviceId?: string) => {
     setMicError(null)
@@ -106,7 +114,7 @@ export function useWhisperTranscription() {
     // Warm up model while user is speaking (hides latency)
     if (modelStatus === 'idle') {
       setModelStatus('loading')
-      getPipeline().then(() => setModelStatus('ready')).catch(() => setModelStatus('idle'))
+      getPipeline(modelSize).then(() => setModelStatus('ready')).catch(() => setModelStatus('idle'))
     }
 
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -137,7 +145,7 @@ export function useWhisperTranscription() {
         audioCtx.close()
         const float32 = decoded.getChannelData(0)
 
-        const whisper = await getPipeline()
+        const whisper = await getPipeline(modelSize)
         setModelStatus('ready')
 
         const result = await whisper(float32, {
@@ -168,7 +176,7 @@ export function useWhisperTranscription() {
     recorder.start()
     setPhase('recording')
     setLiveTranscript('')
-  }, [modelStatus])
+  }, [modelStatus, modelSize])
 
   const stop = useCallback(() => {
     if (mediaRecorderRef.current?.state === 'recording') {

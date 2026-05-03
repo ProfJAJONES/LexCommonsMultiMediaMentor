@@ -14,6 +14,8 @@ export function useCameraInput() {
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null)
+  // Cache last completed recording for session-package bundling
+  const lastBlobRef = useRef<{ uint8: Uint8Array; name: string } | null>(null)
 
   // Enumerate devices on mount — try without permission first for count, then with permission for labels
   useEffect(() => {
@@ -136,6 +138,7 @@ export function useCameraInput() {
     const blob = new Blob(chunksRef.current, { type: 'video/webm' })
     const uint8 = new Uint8Array(await blob.arrayBuffer())
     const name = `camera-recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`
+    if (uint8.byteLength > 0) lastBlobRef.current = { uint8, name }
 
     try {
       await window.api.saveRecording(uint8, name)
@@ -149,6 +152,30 @@ export function useCameraInput() {
     }
   }, [])
 
+  // Stop recording and return raw bytes for bundling — no save dialog.
+  const stopAndGetBlob = useCallback(async (): Promise<{ uint8: Uint8Array; name: string } | null> => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+    const recorder = mediaRecorderRef.current
+    if (!recorder || recorder.state === 'inactive') return null
+    setCameraState('saving')
+    if (recorder.state === 'paused') recorder.resume()
+    await new Promise<void>(resolve => {
+      recorder.onstop = () => resolve()
+      recorder.stop()
+    })
+    const blob = new Blob(chunksRef.current, { type: 'video/webm' })
+    const uint8 = new Uint8Array(await blob.arrayBuffer())
+    const name = `camera-recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`
+    chunksRef.current = []
+    mediaRecorderRef.current = null
+    setElapsedSec(0)
+    setCameraState(streamRef.current ? 'previewing' : 'idle')
+    if (uint8.byteLength === 0) return null
+    const result = { uint8, name }
+    lastBlobRef.current = result
+    return result
+  }, [])
+
   return {
     cameraState,
     elapsedSec,
@@ -156,6 +183,7 @@ export function useCameraInput() {
     selectedDeviceId,
     error,
     videoPreviewRef,
+    lastBlobRef,
     setSelectedDeviceId,
     refreshDevices,
     startPreview,
@@ -163,6 +191,7 @@ export function useCameraInput() {
     startRecording,
     pauseRecording,
     resumeRecording,
-    stopRecording
+    stopRecording,
+    stopAndGetBlob
   }
 }

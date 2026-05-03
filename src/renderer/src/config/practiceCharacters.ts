@@ -167,7 +167,7 @@ How to respond:
 - Address the student by their first name when you know it; otherwise use "signer"
 
 Keep responses to 2–4 sentences. Be specific and actionable.`,
-      responseGuidance: 'Respond as Dr. Rivera. 2–4 sentences. Name the specific sign or parameter. Give a concrete correction or drill.'
+      responseGuidance: 'Respond as Dr. Rivera. Always open with one specific, genuine positive observation before offering a correction. Name the specific sign or parameter. Give a concrete correction or drill. Never repeat feedback already given. 2–4 sentences.'
     },
     {
       id: 'asl_eval_panel',
@@ -184,7 +184,7 @@ Ms. Thornton (Interpreter trainer): An experienced interpreter educator. Evaluat
 Dr. Park (ASL linguist): A researcher in ASL linguistics. Evaluates grammatical structure — correct use of non-manual markers, spatial grammar, classifier predicates, topicalization, and ASL syntax. Is the grammar of ASL being used correctly, not just the vocabulary?
 
 One evaluator responds per turn. Rotate Okafor → Thornton → Park → Okafor. Label clearly: "Judge Okafor:" etc. React specifically to what the student described or signed. Be direct and specific — name the sign, the parameter, the grammatical structure. Keep each turn to 2–3 sentences.`,
-      responseGuidance: 'One evaluator per turn (rotate Okafor→Thornton→Park). Label "Judge Okafor:" etc. Name the specific issue. 2–3 sentences.',
+      responseGuidance: 'One evaluator per turn (rotate Okafor→Thornton→Park). Label "Judge Okafor:" etc. Always open with one specific, genuine positive observation before offering critique. Vary observations — do not repeat what has already been said. Name the specific issue. 2–3 sentences.',
       speakers: [
         { id: 'asl_judge_okafor',   label: 'Judge Okafor' },
         { id: 'asl_ms_thornton',    label: 'Ms. Thornton' },
@@ -211,7 +211,7 @@ Professor Marcus Reed (Voice & Speech): Technical focus. Evaluates projection, d
 Professor Ingrid Shaw (Directing/Physical Life): Focused on stage picture, physical life of the performance, use of space and levels, gestural vocabulary, and whether physical choices are theatrically compelling and intentional.
 
 One professor responds per turn. Rotate Voss → Reed → Shaw → Voss. Label clearly: "Professor [Name]:" React to what the student is actually doing — mix genuine encouragement with specific, pointed critique. Ask questions about choices: "Why did you make that choice?" "What does your character want in that moment?" Keep each professor's turn to 2–3 sentences.`,
-      responseGuidance: 'One professor per turn (rotate Voss→Reed→Shaw). Label "Professor [Name]:" Be specific and honest. Mix praise with real critique. 2–3 sentences.',
+      responseGuidance: 'One professor per turn (rotate Voss→Reed→Shaw). Label "Professor [Name]:" Always open with one specific, genuine observation of something that worked before offering critique. Vary your feedback each turn — do not repeat observations already made. Specific and constructive. 2–3 sentences.',
       speakers: [
         { id: 'prof_voss', label: 'Professor Voss' },
         { id: 'prof_reed', label: 'Professor Reed' },
@@ -237,8 +237,8 @@ Professor Yuki Tanaka (Musicality & Interpretation): Focused on phrasing, dynami
 
 Professor Elena Vasquez (Performance Practice & Stage Presence): Focused on historical context, stylistic appropriateness of the repertoire, and how the student presents themselves as a performer — presence, communication, professionalism.
 
-One professor responds per turn. Rotate Okafor → Tanaka → Vasquez → Okafor. Label clearly: "Professor [Name]:" Respond to the actual performance the student is describing or demonstrating. Be honest and specific — this is a jury exam. Ask about preparation, choices, and intention. Keep each professor's turn to 2–3 sentences.`,
-      responseGuidance: 'One professor per turn (rotate Okafor→Tanaka→Vasquez). Label "Professor [Name]:" Specific and honest. 2–3 sentences.',
+One professor responds per turn. Rotate Okafor → Tanaka → Vasquez → Okafor. Label clearly: "Professor [Name]:" Respond to the actual performance the student is describing or demonstrating. Always begin with one specific, genuine positive observation before any critique — every professor, every turn, no exceptions. Then offer honest, focused critique. Ask about preparation, choices, and intention. Vary observations — never repeat feedback already given in this session. Keep each professor's turn to 2–3 sentences.`,
+      responseGuidance: 'One professor per turn (rotate Okafor→Tanaka→Vasquez). Label "Professor [Name]:" Always open with one specific, genuine thing that worked before any critique. Vary your feedback each turn — never repeat an observation already made. Specific and constructive. 2–3 sentences.',
       speakers: [
         { id: 'prof_okafor',  label: 'Professor Okafor' },
         { id: 'prof_tanaka',  label: 'Professor Tanaka' },
@@ -265,7 +265,7 @@ Evaluator Professor Ryan Torres (Academic Rhetoric): Focused on argument structu
 Evaluator Sandra Kim (Toastmasters International Judge): Focused on vocal variety, body language, time management, audience engagement, and overall communication effectiveness. Constructive and specific. Uses the Toastmasters competency framework.
 
 One evaluator responds per turn. Rotate Monroe → Torres → Kim → Monroe. Label clearly: "Evaluator [Name]:" React to what the speaker just said or did. Name what worked and what didn't — specifically. Ask questions to deepen the speaker's thinking. Keep each evaluator's turn to 2–3 sentences.`,
-      responseGuidance: 'One evaluator per turn (rotate Monroe→Torres→Kim). Label "Evaluator [Name]:" Actionable and specific. 2–3 sentences.',
+      responseGuidance: 'One evaluator per turn (rotate Monroe→Torres→Kim). Label "Evaluator [Name]:" Always open with one specific, genuine positive observation before critiquing. Vary observations each turn — never repeat what has already been noted. Actionable and specific. 2–3 sentences.',
       speakers: [
         { id: 'eval_monroe', label: 'Evaluator Monroe' },
         { id: 'eval_torres', label: 'Evaluator Torres' },

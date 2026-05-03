@@ -364,13 +364,24 @@ export default function App() {
     webcamRecorderRef.current = null
     webcamChunksRef.current = []
 
-    // Prefer screen recording over webcam (screen recording includes app UI + audio)
-    const videoBlob = screenRecording?.uint8 ?? webcamBlob
+    // Stop camera-panel recorder and include its bytes
+    let cameraBlob: Uint8Array | null = null
+    const isCameraRecording = camera.cameraState === 'recording' || camera.cameraState === 'paused'
+    if (isCameraRecording) {
+      const cb = await camera.stopAndGetBlob()
+      cameraBlob = cb?.uint8 ?? null
+    } else if (camera.lastBlobRef.current) {
+      cameraBlob = camera.lastBlobRef.current.uint8
+      camera.lastBlobRef.current = null
+    }
+
+    // Prefer screen recording > main webcam > camera-panel recording
+    const videoBlob = screenRecording?.uint8 ?? webcamBlob ?? cameraBlob
 
     const hasWork = ann.comments.length > 0 || ann.annotations.length > 0 ||
       audio.pitchHistory.length > 0 || aiMessagesRef.current.length > 0 ||
       practiceMessagesRef.current.length > 0 || narrativeRef.current.length > 0 ||
-      videoBlob != null
+      videoBlob != null || cameraBlob != null
 
     if (hasWork) {
       const slug = (fileName || 'session').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')
@@ -486,7 +497,18 @@ ${commentLines}`
         webcamBlob = arr.byteLength > 0 ? arr : null
       }
 
-      const videoBlob = screenRecording?.uint8 ?? webcamBlob
+      // Include camera-panel recording (active or last completed)
+      let cameraBlob: Uint8Array | null = null
+      const isCameraRecording = camera.cameraState === 'recording' || camera.cameraState === 'paused'
+      if (isCameraRecording) {
+        const cb = await camera.stopAndGetBlob()
+        cameraBlob = cb?.uint8 ?? null
+      } else if (camera.lastBlobRef.current) {
+        cameraBlob = camera.lastBlobRef.current.uint8
+        camera.lastBlobRef.current = null
+      }
+
+      const videoBlob = screenRecording?.uint8 ?? webcamBlob ?? cameraBlob
       const slug = (fileName || 'session').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')
       await window.api.saveProjectPackage(
         videoBlob ?? null,
@@ -1228,6 +1250,9 @@ ${ann.comments.length === 0
               elevenLabsKey={ai.elevenLabsKey}
               onSessionData={msgs => { practiceMessagesRef.current = msgs }}
               getSigningState={domain === 'asl' ? () => signingStateRef.current : undefined}
+              onStudentStartedSpeaking={() => {
+                if (camera.cameraState === 'previewing') camera.startRecording()
+              }}
             />
           )}
           {activeTab === 'camera' && (

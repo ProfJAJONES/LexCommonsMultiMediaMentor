@@ -143,7 +143,7 @@ export function buildSystemPrompt(
 
 ${roleContext}
 
-Keep responses focused and actionable — avoid padding. Use **bold** for section headings. Respond in 200–400 words unless the question calls for more detail.${knowledgeSection}${sessionSection}${scopeSection}`
+Keep responses focused and actionable — avoid padding. Use **bold** for section headings. Respond in 200–400 words unless the question calls for more detail. Always begin every feedback response with at least one specific, genuine positive observation before critiquing.${knowledgeSection}${sessionSection}${scopeSection}`
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
