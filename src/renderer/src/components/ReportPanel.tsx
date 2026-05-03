@@ -1150,7 +1150,7 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
             <button
               onMouseDown={e => { e.preventDefault(); onDoneEdit() }}
               style={{ background: '#0284c7', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '4px 10px' }}
-            >✓ Done</button>
+            >💾 Save</button>
           ) : (
             <button
               onClick={onEnterEdit}

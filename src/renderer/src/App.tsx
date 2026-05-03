@@ -389,11 +389,79 @@ export default function App() {
   // Save everything into a package ZIP without clearing the session.
   // Stops any active screen recording (the stream can't continue after capture),
   // but all in-memory data (comments, audio, etc.) stays live.
+  // Auto-generates the AI narrative if it hasn't been created yet.
   const [isSavingPackage, setIsSavingPackage] = useState(false)
+  const [savePackageStatus, setSavePackageStatus] = useState('')
   async function handleSavePackage() {
     if (isSavingPackage) return
     setIsSavingPackage(true)
     try {
+      // ── 1. Auto-generate AI narrative if missing ──────────────────────────────
+      const hasData = audio.pitchHistory.length > 0 || audio.dbHistory.length > 0 || ann.comments.length > 0
+      if (!narrativeRef.current && ai.apiKey && hasData) {
+        setSavePackageStatus('Generating AI narrative…')
+        try {
+          // Compute the same stats as ReportPanel so the prompt matches
+          const voiced = audio.pitchHistory.filter(s => s.hz > 0)
+          const avgPitch = voiced.length > 0 ? Math.round(voiced.reduce((a, s) => a + s.hz, 0) / voiced.length) : 0
+          const pitchVar  = voiced.length > 1
+            ? Math.round(Math.sqrt(voiced.reduce((a, s) => a + (s.hz - avgPitch) ** 2, 0) / voiced.length)) : 0
+          const voicedPct = audio.pitchHistory.length > 0
+            ? Math.round((voiced.length / audio.pitchHistory.length) * 100) : 0
+          const finiteDb  = audio.dbHistory.filter(s => isFinite(s.db) && s.db > -60)
+          const avgDb     = finiteDb.length > 0 ? Math.round(finiteDb.reduce((a, s) => a + s.db, 0) / finiteDb.length) : 0
+          const maxDb     = finiteDb.length > 0 ? Math.max(...finiteDb.map(s => s.db)) : 0
+          const minDb     = finiteDb.length > 0 ? Math.min(...finiteDb.map(s => s.db)) : 0
+          const dynRange  = Math.round(maxDb - minDb)
+          const RANGES = [
+            { label: 'Bass',      range: '< 165 Hz',    test: (hz: number) => hz < 165 },
+            { label: 'Low-Mid',   range: '165–255 Hz',  test: (hz: number) => hz >= 165 && hz < 255 },
+            { label: 'Mid',       range: '255–350 Hz',  test: (hz: number) => hz >= 255 && hz < 350 },
+            { label: 'High',      range: '350–500 Hz',  test: (hz: number) => hz >= 350 && hz < 500 },
+            { label: 'Very High', range: '> 500 Hz',    test: (hz: number) => hz >= 500 },
+          ]
+          const rangeLines = RANGES.map(r => {
+            const pct = voiced.length > 0 ? Math.round((voiced.filter(s => r.test(s.hz)).length / voiced.length) * 100) : 0
+            return `  ${r.label} (${r.range}): ${pct}%`
+          }).join('\n')
+          const commentLines = ann.comments.length > 0
+            ? [...ann.comments].sort((a, b) => a.timestamp - b.timestamp).map(c => {
+                const mm = Math.floor(c.timestamp / 60)
+                const ss = String(Math.floor(c.timestamp % 60)).padStart(2, '0')
+                return `  [${mm}:${ss}] (${c.tag}) ${c.text}`
+              }).join('\n')
+            : '  None recorded.'
+          const systemPrompt = `You are an expert oral advocacy coach. Write a concise, personalized coaching narrative based on the session data. Structure your response with these sections:
+**Overview** — 2–3 sentences summarising the session.
+**Vocal Delivery** — Analysis of pitch, variability, and voiced/silent time.
+**Volume & Dynamics** — Analysis of average volume and dynamic range.
+**Professor Feedback** — Synthesise the key themes from the instructor's comments.
+**Top 3 Action Items** — Specific, concrete steps the student can take to improve.
+Keep the total response under 500 words. Be encouraging but honest.`
+          const userPrompt = `Please write a coaching narrative for this session:
+
+File: ${fileName || 'Unnamed recording'}
+Duration: ${durationSec > 0 ? `${Math.floor(durationSec/60)}m ${Math.floor(durationSec%60)}s` : 'Unknown'}
+
+Pitch — avg ${avgPitch} Hz, variability σ=${pitchVar} Hz, voiced ${voicedPct}% of time
+Volume — avg ${avgDb} dBFS, dynamic range ${dynRange} dB
+
+Vocal Range Distribution:
+${rangeLines}
+
+Instructor Comments (${ann.comments.length} total):
+${commentLines}`
+
+          let full = ''
+          await ai.generateOnce(userPrompt, systemPrompt, token => {
+            full += token
+            narrativeRef.current = full
+          })
+        } catch { /* skip narrative if generation fails (no key, network, etc.) */ }
+      }
+
+      // ── 2. Stop screen recording and bundle ──────────────────────────────────
+      setSavePackageStatus('Saving…')
       const isScreenRecording = screen.recorderState === 'recording' || screen.recorderState === 'paused'
       const screenRecording = isScreenRecording ? await screen.stopAndGetBlob() : null
 
@@ -424,6 +492,7 @@ export default function App() {
       )
     } finally {
       setIsSavingPackage(false)
+      setSavePackageStatus('')
     }
   }
 
@@ -1053,21 +1122,21 @@ ${ann.comments.length === 0
             <button
               onClick={handleSavePackage}
               disabled={isSavingPackage}
-              title="Save video recording, session report (PDF), notes (DOCX), and raw data into a single ZIP — keeps session open"
+              title="Auto-generates AI narrative if needed, then saves video, PDF report, DOCX notes, and data into one ZIP"
               style={{ ...btnStyle(isSavingPackage ? '#94a3b8' : '#059669'), width: '100%', fontSize: 11, fontWeight: 700 }}
             >
-              {isSavingPackage ? '⏳ Saving…' : '💾 Save Session Package'}
+              {isSavingPackage ? `⏳ ${savePackageStatus || 'Saving…'}` : '💾 Save Session Package'}
             </button>
             <div style={{ fontSize: 10, color: '#064e3b', textAlign: 'center', lineHeight: 1.3 }}>
-              Bundles video · PDF report · DOCX · data
+              {ai.apiKey ? 'Auto-generates AI narrative · video · PDF · DOCX · data' : 'Bundles video · PDF report · DOCX · data'}
             </div>
-            {/* Secondary: close without saving, or close+save */}
+            {/* Close without auto-save — user explicitly saves with the button above */}
             <button
-              onClick={handleCloseProject}
-              title="Save session package and close — or close without saving if there is nothing to save"
-              style={{ ...btnStyle('#dc2626'), width: '100%', fontSize: 10 }}
+              onClick={doClear}
+              title="Close the current session without saving — use Save Session Package first to keep your work"
+              style={{ ...btnStyle('#64748b'), width: '100%', fontSize: 10 }}
             >
-              ✕ Save &amp; Close Project
+              ✕ Close Project
             </button>
           </div>
         )}
