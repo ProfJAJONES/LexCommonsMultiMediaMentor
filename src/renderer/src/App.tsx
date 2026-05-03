@@ -344,7 +344,11 @@ export default function App() {
   async function handleCloseProject() {
     // Stop screen recorder if active
     const isScreenRecording = screen.recorderState === 'recording' || screen.recorderState === 'paused'
-    const screenRecording = isScreenRecording ? await screen.stopAndGetBlob() : null
+    let screenRecording = isScreenRecording ? await screen.stopAndGetBlob() : null
+    if (!screenRecording && screen.lastBlobRef.current) {
+      screenRecording = screen.lastBlobRef.current
+      screen.lastBlobRef.current = null
+    }
 
     // Stop webcam auto-recorder and capture its bytes
     let webcamBlob: Uint8Array | null = null
@@ -465,7 +469,13 @@ ${commentLines}`
       // ── 2. Stop screen recording and bundle ──────────────────────────────────
       setSavePackageStatus('Saving…')
       const isScreenRecording = screen.recorderState === 'recording' || screen.recorderState === 'paused'
-      const screenRecording = isScreenRecording ? await screen.stopAndGetBlob() : null
+      let screenRecording = isScreenRecording ? await screen.stopAndGetBlob() : null
+      // If the user manually stopped the recording before clicking Save, fall
+      // back to the last completed blob cached in the hook.
+      if (!screenRecording && screen.lastBlobRef.current) {
+        screenRecording = screen.lastBlobRef.current
+        screen.lastBlobRef.current = null
+      }
 
       // Snapshot webcam bytes without stopping the recorder so live session continues
       let webcamBlob: Uint8Array | null = null

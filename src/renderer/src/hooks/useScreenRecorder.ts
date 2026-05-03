@@ -33,6 +33,9 @@ export function useScreenRecorder() {
   const pendingPipRef = useRef<MediaStream | null>(null)
   const canvasCleanupRef = useRef<(() => void) | null>(null)
   const canvasStreamRef = useRef<MediaStream | null>(null)
+  // Cache the last completed recording so handleSavePackage can include it
+  // even if the user manually stopped the recording before clicking Save.
+  const lastBlobRef = useRef<{ uint8: Uint8Array; name: string } | null>(null)
 
   // ── shared recording start ─────────────────────────────────────────────────
   // audioStream: MediaStream → use its audio tracks (borrowed, don't stop on cleanup)
@@ -304,7 +307,9 @@ export function useScreenRecorder() {
     setHasAudio(false)
 
     if (uint8.byteLength === 0) return null
-    return { uint8, name }
+    const result = { uint8, name }
+    lastBlobRef.current = result
+    return result
   }, [])
 
   const stopRecording = useCallback(async () => {
@@ -332,6 +337,7 @@ export function useScreenRecorder() {
     const blob = new Blob(chunksRef.current, { type: 'video/webm' })
     const uint8 = new Uint8Array(await blob.arrayBuffer())
     const name = `screen-recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`
+    if (uint8.byteLength > 0) lastBlobRef.current = { uint8, name }
 
     let outPath: string | null = null
     let isFallback = false
@@ -364,6 +370,7 @@ export function useScreenRecorder() {
     savedPath,
     savedAsFallback,
     clearSavedPath: () => setSavedPath(null),
+    lastBlobRef,
     openPicker,
     cancelPicker,
     startRecording,

@@ -950,9 +950,9 @@ ${rows}
             <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 5, color: '#92400e', fontSize: 10, padding: '4px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
               <span style={{ flex: 1 }}>
                 {ttsFallbackReason.startsWith('library-voice:')
-                  ? '⚠ That voice requires an ElevenLabs paid subscription — switched to Rachel (free). Change the voice in Voice Settings to stop seeing this.'
+                  ? '⚠ Switched to Rachel — the selected voice is a library/community voice that requires an ElevenLabs Creator plan ($22/mo) to use via API. Change the voice in Voice Settings to a pre-made voice to stop seeing this.'
                   : ttsFallbackReason.includes('paid_plan_required') || ttsFallbackReason.includes('library voices')
-                  ? '⚠ ElevenLabs: the selected voice requires a paid subscription. Using browser voice instead — pick a free voice in Voice Settings.'
+                  ? '⚠ ElevenLabs: library/community voices require a Creator plan ($22/mo) or higher — even with credits or a Starter plan. Using local voice instead. Select a pre-made voice (Rachel, Adam, etc.) in Voice Settings, or upgrade at elevenlabs.io.'
                   : `Using browser voice — ElevenLabs failed: ${ttsFallbackReason}`}
               </span>
               <button onClick={() => setTtsFallbackReason(null)} style={{ background: 'none', border: 'none', color: '#92400e', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}>✕</button>
