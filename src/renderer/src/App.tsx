@@ -386,6 +386,47 @@ export default function App() {
     doClear()
   }
 
+  // Save everything into a package ZIP without clearing the session.
+  // Stops any active screen recording (the stream can't continue after capture),
+  // but all in-memory data (comments, audio, etc.) stays live.
+  const [isSavingPackage, setIsSavingPackage] = useState(false)
+  async function handleSavePackage() {
+    if (isSavingPackage) return
+    setIsSavingPackage(true)
+    try {
+      const isScreenRecording = screen.recorderState === 'recording' || screen.recorderState === 'paused'
+      const screenRecording = isScreenRecording ? await screen.stopAndGetBlob() : null
+
+      // Snapshot webcam bytes without stopping the recorder so live session continues
+      let webcamBlob: Uint8Array | null = null
+      if (webcamRecorderRef.current && webcamRecorderRef.current.state !== 'inactive') {
+        webcamRecorderRef.current.requestData()
+        const blob = new Blob(webcamChunksRef.current, { type: 'video/webm' })
+        const arr = new Uint8Array(await blob.arrayBuffer())
+        webcamBlob = arr.byteLength > 0 ? arr : null
+      }
+
+      const videoBlob = screenRecording?.uint8 ?? webcamBlob
+      const slug = (fileName || 'session').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')
+      await window.api.saveProjectPackage(
+        videoBlob ?? null,
+        buildComprehensiveSessionHTML(),
+        {
+          fileName: fileName || 'Untitled',
+          exportedAt: new Date().toLocaleString(),
+          comments: ann.comments,
+          pitchData: audio.pitchHistory,
+          decibelData: audio.dbHistory,
+          movementData: movementHistory,
+          narrative: narrativeRef.current,
+        },
+        slug
+      )
+    } finally {
+      setIsSavingPackage(false)
+    }
+  }
+
   // Legacy alias — kept so the confirm dialog buttons still work.
   function handleCloseSession() {
     handleCloseProject()
@@ -1005,21 +1046,28 @@ ${ann.comments.length === 0
           </div>
         )}
 
-        {/* Close Project button — only shown when a session is active */}
+        {/* Save / Close buttons — shown when a session is active */}
         {fileName && (
-          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', background: '#fff7ed' }}>
+          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', background: '#f0fdf4', display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {/* Primary action: save everything into one ZIP (video + PDF report + DOCX + JSON) */}
+            <button
+              onClick={handleSavePackage}
+              disabled={isSavingPackage}
+              title="Save video recording, session report (PDF), notes (DOCX), and raw data into a single ZIP — keeps session open"
+              style={{ ...btnStyle(isSavingPackage ? '#94a3b8' : '#059669'), width: '100%', fontSize: 11, fontWeight: 700 }}
+            >
+              {isSavingPackage ? '⏳ Saving…' : '💾 Save Session Package'}
+            </button>
+            <div style={{ fontSize: 10, color: '#064e3b', textAlign: 'center', lineHeight: 1.3 }}>
+              Bundles video · PDF report · DOCX · data
+            </div>
+            {/* Secondary: close without saving, or close+save */}
             <button
               onClick={handleCloseProject}
-              title={
-                screen.recorderState === 'recording' || screen.recorderState === 'paused'
-                  ? 'Stop recording and save everything as a zip package'
-                  : 'Close the current project and start fresh'
-              }
-              style={{ ...btnStyle('#dc2626'), width: '100%', fontSize: 11 }}
+              title="Save session package and close — or close without saving if there is nothing to save"
+              style={{ ...btnStyle('#dc2626'), width: '100%', fontSize: 10 }}
             >
-              {screen.recorderState === 'recording' || screen.recorderState === 'paused'
-                ? '■ Stop & Package Project'
-                : '✕ Close Project'}
+              ✕ Save &amp; Close Project
             </button>
           </div>
         )}
@@ -1353,8 +1401,6 @@ ${ann.comments.length === 0
             fileName={fileName}
             durationSec={durationSec}
             apiKey={ai.apiKey}
-            pitchGraphImage={pitchGraphRef.current?.toDataURL() ?? null}
-            decibelGraphImage={decibelGraphRef.current?.toDataURL() ?? null}
             onGenerateNarrative={ai.generateOnce}
             onNarrativeChange={(n) => { narrativeRef.current = n }}
           />

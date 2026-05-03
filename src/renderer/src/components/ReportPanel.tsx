@@ -11,9 +11,6 @@ interface ReportPanelProps {
   fileName: string
   durationSec: number
   apiKey: string
-  /** Optional PNG data URLs captured from the live canvas graphs for embedding in PDF exports */
-  pitchGraphImage?: string | null
-  decibelGraphImage?: string | null
   onGenerateNarrative: (
     prompt: string,
     systemPrompt: string,
@@ -376,9 +373,7 @@ function buildReportHTML(
   movementHistory: { t: number; score: number }[],
   fileName: string,
   durationSec: number,
-  narrative: string,
-  pitchGraphImage?: string | null,
-  decibelGraphImage?: string | null
+  narrative: string
 ): string {
   const W = 700
 
@@ -544,14 +539,10 @@ function buildReportHTML(
   </div>
 
   <h2>Pitch Graph</h2>
-  <div class="chart">${pitchGraphImage
-    ? `<img src="${pitchGraphImage}" style="max-width:100%;border-radius:6px;display:block" alt="Pitch graph">`
-    : pitchSvg()}</div>
+  <div class="chart">${pitchSvg()}</div>
 
   <h2>Volume Graph</h2>
-  <div class="chart">${decibelGraphImage
-    ? `<img src="${decibelGraphImage}" style="max-width:100%;border-radius:6px;display:block" alt="Volume graph">`
-    : volumeSvg()}</div>
+  <div class="chart">${volumeSvg()}</div>
 
   <h2>Vocal Range Distribution</h2>
   <div class="chart">${rangeSvg()}</div>
@@ -585,8 +576,6 @@ export function ReportPanel({
   fileName,
   durationSec,
   apiKey,
-  pitchGraphImage,
-  decibelGraphImage,
   onGenerateNarrative,
   onNarrativeChange
 }: ReportPanelProps) {
@@ -721,7 +710,7 @@ ${comments.length > 0
     setIsSaving(true)
     setSavedPath(null)
     try {
-      const html = buildReportHTML(stats, pitchHistory, dbHistory, comments, movementHistory, fileName, durationSec, narrativeHtml || narrative, pitchGraphImage, decibelGraphImage)
+      const html = buildReportHTML(stats, pitchHistory, dbHistory, comments, movementHistory, fileName, durationSec, narrativeHtml || narrative)
       const saveReport = (window.api as unknown as { saveReport?: (h: string) => Promise<string | null> }).saveReport
       if (!saveReport) { console.error('saveReport IPC not available'); return }
       const path = await saveReport(html)
@@ -1023,6 +1012,8 @@ interface NarrativeEditorProps {
 }
 
 function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEnterEdit, onDoneEdit }: NarrativeEditorProps) {
+  const [cmdState, setCmdState] = useState<Record<string, boolean>>({})
+
   // When entering edit mode, React removes dangerouslySetInnerHTML and clears the element.
   // Repopulate manually so the user sees their content in the editable div.
   useEffect(() => {
@@ -1030,6 +1021,21 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
       editorRef.current.innerHTML = html
       editorRef.current.focus()
     }
+  }, [editingNarrative])
+
+  // Track which formatting commands are active at the cursor so toolbar icons highlight correctly
+  useEffect(() => {
+    if (!editingNarrative) return
+    function updateState() {
+      setCmdState({
+        bold:          document.queryCommandState('bold'),
+        italic:        document.queryCommandState('italic'),
+        underline:     document.queryCommandState('underline'),
+        strikeThrough: document.queryCommandState('strikeThrough'),
+      })
+    }
+    document.addEventListener('selectionchange', updateState)
+    return () => document.removeEventListener('selectionchange', updateState)
   }, [editingNarrative])
 
   // Prevent toolbar button clicks from stealing focus from the editor
@@ -1041,9 +1047,10 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
     }
   }
 
-  function TBtn({ cmd, val, title, children, active }: {
-    cmd: string; val?: string; title: string; children: React.ReactNode; active?: boolean
+  function TBtn({ cmd, val, title, children }: {
+    cmd: string; val?: string; title: string; children: React.ReactNode
   }) {
+    const active = !!cmdState[cmd]
     return (
       <button
         onMouseDown={tb(cmd, val)}
@@ -1052,7 +1059,7 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
           background: active ? '#e0f2fe' : 'transparent',
           border: `1px solid ${active ? '#7dd3fc' : '#e2e8f0'}`,
           borderRadius: 4,
-          color: 'var(--text-medium)',
+          color: active ? '#0369a1' : 'var(--text-medium)',
           cursor: 'pointer',
           fontSize: 12,
           fontWeight: 600,
@@ -1158,7 +1165,6 @@ function NarrativeEditor({ html, isGenerating, editingNarrative, editorRef, onEn
         ref={editorRef}
         contentEditable={editingNarrative && !isGenerating}
         suppressContentEditableWarning
-        onBlur={editingNarrative ? onDoneEdit : undefined}
         dangerouslySetInnerHTML={!editingNarrative ? { __html: html + (isGenerating ? '<span style="color:#0284c7">▌</span>' : '') } : undefined}
         style={{
           background: 'var(--bg-card)',

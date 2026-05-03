@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import type { FeedbackComment } from '../types'
 import { useCommentTemplates } from '../hooks/useCommentTemplates'
 import type { CommentTemplate } from '../hooks/useCommentTemplates'
@@ -103,6 +103,12 @@ export function FeedbackPanel({ comments, currentTime, domain, onAdd, onDelete, 
   const [tag, setTag] = useState<FeedbackComment['tag']>('general')
   const [pendingVoiceNote, setPendingVoiceNote] = useState<string | null>(null)
   const [showLibrary, setShowLibrary] = useState(false)
+  const latestCommentRef = useRef<HTMLDivElement>(null)
+
+  // Scroll the latest comment into view whenever a new one is added
+  useEffect(() => {
+    latestCommentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [comments.length])
 
   const rec = useVoiceRecorder()
   const tmpl = useCommentTemplates(domain)
@@ -289,14 +295,16 @@ export function FeedbackPanel({ comments, currentTime, domain, onAdd, onDelete, 
       )}
 
       {/* ── Comment list ─────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ minHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {comments.length === 0 && (
           <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', margin: '16px 0' }}>
             No feedback yet. Play the video and add comments at specific timestamps.
           </p>
         )}
-        {comments.map(c => (
-          <CommentCard key={c.id} comment={c} domain={domain} onDelete={onDelete} onSeek={onSeek} />
+        {comments.map((c, i) => (
+          <div key={c.id} ref={i === comments.length - 1 ? latestCommentRef : undefined}>
+            <CommentCard comment={c} domain={domain} onDelete={onDelete} onSeek={onSeek} />
+          </div>
         ))}
       </div>
     </div>

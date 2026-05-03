@@ -587,10 +587,7 @@ ${rows}
             </button>
           )}
           {!practice.sessionActive && practice.messages.length > 0 && (
-            <>
-              <button onClick={handleSave} style={hdrBtn(false)} title="Save session transcript">💾 Save</button>
-              <button onClick={handleReset} style={hdrBtn(false)}>↺ Reset</button>
-            </>
+            <button onClick={handleReset} style={hdrBtn(false)}>↺ Reset</button>
           )}
         </div>
       </div>
