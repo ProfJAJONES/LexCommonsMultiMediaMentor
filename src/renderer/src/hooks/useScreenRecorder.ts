@@ -30,19 +30,103 @@ export function useScreenRecorder() {
   const micStreamRef = useRef<MediaStream | null>(null)
   const borrowedAudioRef = useRef<boolean>(false)
   const pendingAudioRef = useRef<MediaStream | null | undefined>(undefined)
+  const pendingPipRef = useRef<MediaStream | null>(null)
+  const canvasCleanupRef = useRef<(() => void) | null>(null)
+  const canvasStreamRef = useRef<MediaStream | null>(null)
 
   // ── shared recording start ─────────────────────────────────────────────────
   // audioStream: MediaStream → use its audio tracks (borrowed, don't stop on cleanup)
   //              null        → video-only, skip mic fallback
   //              undefined   → fall back to system default mic
-  const beginRecording = useCallback(async (videoStream: MediaStream, audioStream: MediaStream | null | undefined) => {
+  // pipStream: live webcam stream to composite as picture-in-picture overlay
+  const beginRecording = useCallback(async (
+    videoStream: MediaStream,
+    audioStream: MediaStream | null | undefined,
+    pipStream?: MediaStream | null
+  ) => {
     displayStreamRef.current = videoStream
     setRecorderState('recording')
     setElapsedSec(0)
     setHasAudio(false)
 
+    // ── Canvas PiP compositor ──────────────────────────────────────────────
+    let recordVideoStream: MediaStream = videoStream
+    if (pipStream && pipStream.getVideoTracks().length > 0) {
+      try {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')!
+
+        const dispVid = document.createElement('video')
+        dispVid.srcObject = videoStream
+        dispVid.muted = true
+        dispVid.setAttribute('playsinline', '')
+
+        const pipVid = document.createElement('video')
+        pipVid.srcObject = pipStream
+        pipVid.muted = true
+        pipVid.setAttribute('playsinline', '')
+
+        await Promise.all([
+          new Promise<void>(res => {
+            dispVid.onloadedmetadata = () => { dispVid.play().then(() => res()).catch(() => res()) }
+            dispVid.load()
+          }),
+          new Promise<void>(res => {
+            pipVid.onloadedmetadata = () => { pipVid.play().then(() => res()).catch(() => res()) }
+            pipVid.load()
+          }),
+        ])
+
+        canvas.width  = dispVid.videoWidth  || 1920
+        canvas.height = dispVid.videoHeight || 1080
+
+        const margin = 16
+        const pip_w  = Math.round(canvas.width / 5)
+
+        let rafId: number
+        function drawFrame() {
+          ctx.drawImage(dispVid, 0, 0, canvas.width, canvas.height)
+          if (pipVid.videoWidth > 0 && pipVid.videoHeight > 0) {
+            const aspect = pipVid.videoWidth / pipVid.videoHeight
+            const pip_h  = Math.round(pip_w / aspect)
+            const x = canvas.width  - pip_w - margin
+            const y = canvas.height - pip_h - margin
+            const r = 10
+            ctx.save()
+            ctx.beginPath()
+            ctx.moveTo(x + r, y)
+            ctx.lineTo(x + pip_w - r, y)
+            ctx.arcTo(x + pip_w, y, x + pip_w, y + r, r)
+            ctx.lineTo(x + pip_w, y + pip_h - r)
+            ctx.arcTo(x + pip_w, y + pip_h, x + pip_w - r, y + pip_h, r)
+            ctx.lineTo(x + r, y + pip_h)
+            ctx.arcTo(x, y + pip_h, x, y + pip_h - r, r)
+            ctx.lineTo(x, y + r)
+            ctx.arcTo(x, y, x + r, y, r)
+            ctx.closePath()
+            ctx.clip()
+            ctx.drawImage(pipVid, x, y, pip_w, pip_h)
+            ctx.restore()
+          }
+          rafId = requestAnimationFrame(drawFrame)
+        }
+        drawFrame()
+
+        const cs = canvas.captureStream(30)
+        canvasStreamRef.current = cs
+        canvasCleanupRef.current = () => {
+          cancelAnimationFrame(rafId)
+          dispVid.pause(); dispVid.srcObject = null
+          pipVid.pause(); pipVid.srcObject = null
+        }
+        recordVideoStream = cs
+      } catch {
+        // PiP setup failed — fall back to plain display recording
+      }
+    }
+
     const combined = new MediaStream()
-    videoStream.getVideoTracks().forEach(t => combined.addTrack(t))
+    recordVideoStream.getVideoTracks().forEach(t => combined.addTrack(t))
 
     const existingTracks = audioStream != null ? audioStream.getAudioTracks() : []
     if (existingTracks.length > 0 && existingTracks[0].readyState === 'live') {
@@ -84,9 +168,14 @@ export function useScreenRecorder() {
 
   // ── openPicker ──────────────────────────────────────────────────────────────
   // audioStream is stashed so startRecording (called from SourcePicker) can use it.
-  const openPicker = useCallback(async (audioStream?: MediaStream | null) => {
+  // pipStream is a live webcam stream to overlay as PiP on the recording.
+  const openPicker = useCallback(async (
+    audioStream?: MediaStream | null,
+    pipStream?: MediaStream | null
+  ) => {
     setAudioError(null)
     pendingAudioRef.current = audioStream
+    pendingPipRef.current = pipStream ?? null
 
     // ── Path 1: desktopCapturer.getSources() — shows our custom source picker ──
     let captureSources: CaptureSource[] = []
@@ -101,23 +190,17 @@ export function useScreenRecorder() {
     }
 
     // ── Path 2: native getDisplayMedia system picker ───────────────────────────
-    // getSources returned empty (permission issue or macOS 15 behaviour change).
-    // Fall back to the OS-native screen picker which works regardless of whether
-    // desktopCapturer.getSources() is available. The main process handles this
-    // via setDisplayMediaRequestHandler with useSystemPicker:true.
     try {
-      setRecorderState('picking') // show a "loading" state while picker is open
+      setRecorderState('picking')
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: 30 } as MediaTrackConstraints,
         audio: false
       })
-      await beginRecording(displayStream, audioStream)
+      await beginRecording(displayStream, audioStream, pipStream ?? undefined)
       return
     } catch (e) {
       setRecorderState('idle')
-      // User cancelled — no error needed
       if (e instanceof Error && e.name === 'AbortError') return
-      // Real failure — show what went wrong
       const screenStatus = 'getScreenRecordingStatus' in window.api
         ? await (window.api as Record<string, unknown> & { getScreenRecordingStatus: () => Promise<string> }).getScreenRecordingStatus()
         : 'unknown'
@@ -134,10 +217,9 @@ export function useScreenRecorder() {
   // ── startRecording — called by SourcePicker when user picks a source ────────
   const startRecording = useCallback(async (sourceId: string, withMic: boolean) => {
     setSources([])
-    setRecorderState('picking') // briefly picking while we open the stream
+    setRecorderState('picking')
 
     try {
-      // Legacy Electron API — works for both window and screen sources
       const videoStream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
@@ -151,7 +233,7 @@ export function useScreenRecorder() {
       })
 
       const audioArg = withMic ? pendingAudioRef.current : null
-      await beginRecording(videoStream, audioArg)
+      await beginRecording(videoStream, audioArg, pendingPipRef.current)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setAudioError(`Could not start recording: ${msg}`)
@@ -175,6 +257,13 @@ export function useScreenRecorder() {
     setRecorderState('recording')
   }, [])
 
+  function teardownCanvas() {
+    canvasCleanupRef.current?.()
+    canvasCleanupRef.current = null
+    canvasStreamRef.current?.getTracks().forEach(t => t.stop())
+    canvasStreamRef.current = null
+  }
+
   // Stop recording and return raw bytes — used when the caller wants to bundle
   // the webm into its own package rather than show a separate save dialog.
   const stopAndGetBlob = useCallback(async (): Promise<{ uint8: Uint8Array; name: string } | null> => {
@@ -190,6 +279,7 @@ export function useScreenRecorder() {
       recorder.stop()
     })
 
+    teardownCanvas()
     displayStreamRef.current?.getTracks().forEach(t => t.stop())
     micStreamRef.current?.getTracks().forEach(t => t.stop())
     displayStreamRef.current = null
@@ -225,6 +315,7 @@ export function useScreenRecorder() {
       recorder.stop()
     })
 
+    teardownCanvas()
     displayStreamRef.current?.getTracks().forEach(t => t.stop())
     micStreamRef.current?.getTracks().forEach(t => t.stop())
     displayStreamRef.current = null

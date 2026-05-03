@@ -44,17 +44,11 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
   // List available screens and windows for screen recording
   ipcMain.handle('desktop:getSources', async () => {
     // fetchWindowIcons can fail on macOS 15 — omit it so getSources never throws.
-    // Request screens first; if that returns nothing, include windows too.
-    let sources = await desktopCapturer.getSources({
-      types: ['screen'],
+    // Always request both screens and windows so the picker shows app windows too.
+    const sources = await desktopCapturer.getSources({
+      types: ['screen', 'window'],
       thumbnailSize: { width: 320, height: 200 }
     })
-    if (sources.length === 0) {
-      sources = await desktopCapturer.getSources({
-        types: ['screen', 'window'],
-        thumbnailSize: { width: 320, height: 200 }
-      })
-    }
     return sources.map(s => ({
       id: s.id,
       name: s.name,

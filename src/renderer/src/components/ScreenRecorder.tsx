@@ -71,38 +71,54 @@ export function SourcePicker({ sources, onSelect, onCancel }: PickerProps) {
           <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
             Loading sources…
           </p>
-        ) : (
-          <div style={grid}>
-            {sources.map(s => (
-              <button
-                key={s.id}
-                onClick={() => onSelect(s.id, withMic)}
-                style={sourceCard}
-                title={s.name}
-              >
-                <img
-                  src={s.thumbnail}
-                  alt={s.name}
-                  style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 4, display: 'block' }}
-                />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 4px 2px' }}>
-                  {s.appIcon && (
-                    <img src={s.appIcon} alt="" style={{ width: 14, height: 14, flexShrink: 0 }} />
-                  )}
-                  <span style={{
-                    color: 'var(--text-medium)',
-                    fontSize: 11,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {s.name}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+        ) : (() => {
+          const screens = sources.filter(s => s.id.startsWith('screen:'))
+          const windows = sources.filter(s => !s.id.startsWith('screen:'))
+          const renderCard = (s: CaptureSource) => (
+            <button
+              key={s.id}
+              onClick={() => onSelect(s.id, withMic)}
+              style={sourceCard}
+              title={s.name}
+            >
+              <img
+                src={s.thumbnail}
+                alt={s.name}
+                style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 4, display: 'block' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 4px 2px' }}>
+                {s.appIcon && (
+                  <img src={s.appIcon} alt="" style={{ width: 14, height: 14, flexShrink: 0 }} />
+                )}
+                <span style={{
+                  color: 'var(--text-medium)',
+                  fontSize: 11,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {s.name}
+                </span>
+              </div>
+            </button>
+          )
+          return (
+            <>
+              {screens.length > 0 && (
+                <>
+                  <div style={sectionLabel}>Entire Screen</div>
+                  <div style={grid}>{screens.map(renderCard)}</div>
+                </>
+              )}
+              {windows.length > 0 && (
+                <>
+                  <div style={{ ...sectionLabel, marginTop: screens.length > 0 ? 16 : 0 }}>App Windows</div>
+                  <div style={grid}>{windows.map(renderCard)}</div>
+                </>
+              )}
+            </>
+          )
+        })()}
       </div>
     </div>
   )
@@ -243,6 +259,15 @@ const grid: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
   gap: 10
+}
+
+const sectionLabel: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: 'var(--text-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+  marginBottom: 8
 }
 
 const sourceCard: React.CSSProperties = {

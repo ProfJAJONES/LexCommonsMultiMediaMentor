@@ -92,6 +92,7 @@ export default function App() {
   const audioPickerBtnRef = useRef<HTMLButtonElement>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLDivElement>(null)
+  const [pipEnabled, setPipEnabled] = useState(false)
 
   // Resize state for draggable dividers
   const [sidebarWidth, setSidebarWidth] = useState(520)
@@ -1493,6 +1494,15 @@ ${ann.comments.length === 0
           >
             {mediaMode === 'webcam' ? '● Live' : '📷 Webcam'}
           </button>
+          {mediaMode === 'webcam' && (
+            <button
+              onClick={doClear}
+              style={btnStyle('#1e293b')}
+              title="End webcam session without saving"
+            >
+              ✕ End
+            </button>
+          )}
           {webcamError === 'mic-denied' && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <span style={{ color: '#dc2626', fontSize: 11 }}>Microphone blocked —</span>
@@ -1568,12 +1578,25 @@ ${ann.comments.length === 0
                      audioSource === 'mic'       ? (micStream ?? undefined) :
                      audioSource === 'blackhole' ? (blackholeStream ?? undefined) :
                      undefined)
-                  screen.openPicker(audioStreamForRecording)
+                  const pipStream = pipEnabled && mediaMode === 'webcam' ? (webcamStreamRef.current ?? null) : null
+                  screen.openPicker(audioStreamForRecording, pipStream)
                 }}
                 style={btnStyle('#7c3aed')}
               >
                 ⏺ Record Screen
               </button>
+              {mediaMode === 'webcam' && (
+                <button
+                  onClick={() => setPipEnabled(v => !v)}
+                  style={{
+                    ...btnStyle(pipEnabled ? '#5b21b6' : '#475569'),
+                    ...(pipEnabled ? { boxShadow: '0 0 0 2px #c4b5fd' } : {})
+                  }}
+                  title={pipEnabled ? 'Picture-in-picture ON — your webcam will appear in the corner of the recording' : 'Enable picture-in-picture to overlay your webcam on the screen recording'}
+                >
+                  {pipEnabled ? '⧉ PiP On' : '⧉ PiP'}
+                </button>
+              )}
               {/* Audio source picker */}
               <div style={{ position: 'relative' }} data-audio-picker>
                 <button
