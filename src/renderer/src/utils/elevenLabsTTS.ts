@@ -101,6 +101,13 @@ async function speakElevenLabs(opts: SpeakOptions): Promise<void> {
   })
 }
 
+// Rachel — original ElevenLabs pre-made voice, available on all plan tiers
+const FREE_FALLBACK_VOICE = '21m00Tcm4TlvDq8ikWAM'
+
+function isLibraryVoiceError(reason: string): boolean {
+  return reason.includes('paid_plan_required') || reason.includes('library voices')
+}
+
 export async function speak(opts: SpeakOptions): Promise<SpeakResult> {
   cancelSpeech()
   const { text, voiceId, apiKey, kokoroVoice } = opts
@@ -114,6 +121,17 @@ export async function speak(opts: SpeakOptions): Promise<SpeakResult> {
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return { engine: 'elevenlabs' }
       const reason = err instanceof Error ? err.message : String(err)
+
+      // Library-voice 402: the configured voice requires an ElevenLabs paid plan.
+      // Auto-retry with Rachel (a free pre-made voice) so the user still gets
+      // ElevenLabs audio quality rather than silently dropping to browser TTS.
+      if (isLibraryVoiceError(reason) && voiceId !== FREE_FALLBACK_VOICE) {
+        try {
+          await speakElevenLabs({ ...opts, voiceId: FREE_FALLBACK_VOICE })
+          return { engine: 'elevenlabs', fallbackReason: `library-voice:${voiceId}` }
+        } catch { /* fall through */ }
+      }
+
       // Fall through to Kokoro
       try {
         await speakKokoro(text, kokoroVoice)

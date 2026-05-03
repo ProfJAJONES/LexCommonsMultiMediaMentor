@@ -866,7 +866,13 @@ ${rows}
           {/* ElevenLabs TTS fallback notice — informational, not an error */}
           {ttsFallbackReason && (
             <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 5, color: '#92400e', fontSize: 10, padding: '4px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
-              <span style={{ flex: 1, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>Using browser voice — ElevenLabs failed: {ttsFallbackReason}</span>
+              <span style={{ flex: 1 }}>
+                {ttsFallbackReason.startsWith('library-voice:')
+                  ? '⚠ That voice requires an ElevenLabs paid subscription — switched to Rachel (free). Change the voice in Voice Settings to stop seeing this.'
+                  : ttsFallbackReason.includes('paid_plan_required') || ttsFallbackReason.includes('library voices')
+                  ? '⚠ ElevenLabs: the selected voice requires a paid subscription. Using browser voice instead — pick a free voice in Voice Settings.'
+                  : `Using browser voice — ElevenLabs failed: ${ttsFallbackReason}`}
+              </span>
               <button onClick={() => setTtsFallbackReason(null)} style={{ background: 'none', border: 'none', color: '#92400e', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, flexShrink: 0 }}>✕</button>
             </div>
           )}
