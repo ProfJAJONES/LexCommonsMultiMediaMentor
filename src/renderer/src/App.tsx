@@ -93,6 +93,7 @@ export default function App() {
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLDivElement>(null)
   const [pipEnabled, setPipEnabled] = useState(false)
+  const [focusView, setFocusView] = useState(false)
 
   // Resize state for draggable dividers
   const [sidebarWidth, setSidebarWidth] = useState(520)
@@ -1017,7 +1018,7 @@ ${ann.comments.length === 0
       {showBlackHoleSetup && <BlackHoleSetup onClose={() => setShowBlackHoleSetup(false)} />}
 
       {/* Sidebar */}
-      <aside style={{ ...styles.sidebar, width: sidebarWidth, minWidth: sidebarWidth }}>
+      <aside style={{ ...styles.sidebar, width: sidebarWidth, minWidth: sidebarWidth, display: focusView ? 'none' : undefined }}>
         {/* Traffic-light clearance — draggable titlebar zone */}
         <div style={{ height: 38, WebkitAppRegion: 'drag', flexShrink: 0 } as React.CSSProperties} />
         <div style={styles.sidebarHeader}>
@@ -1444,7 +1445,7 @@ ${ann.comments.length === 0
       </aside>
 
       {/* Sidebar ↔ Main resize handle */}
-      <div
+      {!focusView && <div
         onMouseDown={(e) => {
           e.preventDefault()
           const startX = e.clientX
@@ -1458,7 +1459,7 @@ ${ann.comments.length === 0
         title="Drag to resize sidebar"
       >
         <div style={{ width: 4, height: 48, background: '#93c5fd', borderRadius: 3 }} />
-      </div>
+      </div>}
 
       {/* Main area — report view takes over when that tab is active */}
       {activeTab === 'report' && (
@@ -1793,41 +1794,53 @@ ${ann.comments.length === 0
           )}
 
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', alignItems: 'center' }}>
-            {/* Annotation tools */}
-            <span style={{ color: 'var(--text-secondary)', fontSize: 12, alignSelf: 'center', marginRight: 4 }}>Draw:</span>
-            {(['rect', 'circle', 'arrow', 'text'] as AnnotationTool[]).map(t => (
+            {/* Annotation tools — hidden in focus view */}
+            {!focusView && <>
+              <span style={{ color: 'var(--text-secondary)', fontSize: 12, alignSelf: 'center', marginRight: 4 }}>Draw:</span>
+              {(['rect', 'circle', 'arrow', 'text'] as AnnotationTool[]).map(t => (
+                <button
+                  key={t!}
+                  onClick={() => setActiveTool(activeTool === t ? null : t)}
+                  style={{
+                    ...btnStyle(activeTool === t ? '#6366f1' : '#1e293b'),
+                    minWidth: 36
+                  }}
+                >
+                  {{ rect: '▭', circle: '◯', arrow: '↗', text: 'T' }[t!]}
+                </button>
+              ))}
+              {COLORS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setActiveColor(c)}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    background: c,
+                    border: activeColor === c ? '2px solid #0f172a' : '2px solid transparent',
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                />
+              ))}
               <button
-                key={t!}
-                onClick={() => setActiveTool(activeTool === t ? null : t)}
-                style={{
-                  ...btnStyle(activeTool === t ? '#6366f1' : '#1e293b'),
-                  minWidth: 36
-                }}
+                onClick={() => setShowAnnotationOverlay(v => !v)}
+                style={btnStyle(showAnnotationOverlay ? '#1e293b' : '#0f172a')}
               >
-                {{ rect: '▭', circle: '◯', arrow: '↗', text: 'T' }[t!]}
+                {showAnnotationOverlay ? 'Annotations On' : 'Annotations Off'}
               </button>
-            ))}
-            {/* Color swatches */}
-            {COLORS.map(c => (
-              <button
-                key={c}
-                onClick={() => setActiveColor(c)}
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  background: c,
-                  border: activeColor === c ? '2px solid #0f172a' : '2px solid transparent',
-                  cursor: 'pointer',
-                  padding: 0
-                }}
-              />
-            ))}
+            </>}
+            {/* Focus View toggle */}
             <button
-              onClick={() => setShowAnnotationOverlay(v => !v)}
-              style={btnStyle(showAnnotationOverlay ? '#1e293b' : '#0f172a')}
+              onClick={() => setFocusView(v => !v)}
+              title={focusView ? 'Exit focus view — restore graphs and sidebar' : 'Focus view — hide graphs and sidebar, video only'}
+              style={{
+                ...btnStyle(focusView ? '#059669' : '#334155'),
+                ...(focusView ? { boxShadow: '0 0 0 2px #6ee7b7' } : {})
+              }}
             >
-              {showAnnotationOverlay ? 'Annotations On' : 'Annotations Off'}
+              {focusView ? '⊞ Exit Focus' : '⛶ Focus View'}
             </button>
           </div>
         </div>
@@ -1837,9 +1850,10 @@ ${ann.comments.length === 0
           ref={videoWrapRef}
           style={{
             position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden',
-            flexShrink: 0,
+            flexShrink: focusView ? 1 : 0,
+            flex: focusView ? 1 : undefined,
             marginTop: 8,
-            height: videoAreaHeight
+            height: focusView ? undefined : videoAreaHeight
           }}
           onMouseEnter={handleResizeObserver}
         >
@@ -2013,8 +2027,8 @@ ${ann.comments.length === 0
           )}
         </div>
 
-        {/* Video ↔ Graphs resize handle */}
-        <div
+        {/* Video ↔ Graphs resize handle — hidden in focus view */}
+        {!focusView && <div
           onMouseDown={(e) => {
             e.preventDefault()
             const startY = e.clientY
@@ -2028,10 +2042,10 @@ ${ann.comments.length === 0
           title="Drag to resize video area"
         >
           <div style={{ width: 80, height: 4, background: '#93c5fd', borderRadius: 3 }} />
-        </div>
+        </div>}
 
-        {/* Graphs — always visible */}
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingBottom: 12 }}>
+        {/* Graphs — hidden in focus view */}
+        {!focusView && <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingBottom: 12 }}>
           <div style={styles.graphs}>
             {/* Audio source indicator */}
             <AudioSourceBar
@@ -2086,7 +2100,7 @@ ${ann.comments.length === 0
               height={80}
             />
           </div>
-        </div>
+        </div>}
       </main>}
     </div>
   )
