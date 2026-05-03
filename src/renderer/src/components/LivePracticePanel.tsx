@@ -83,15 +83,34 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
       headers: { 'xi-api-key': elevenLabsKey }
     })
       .then(r => r.json())
-      .then((data: { voices?: Array<{ voice_id: string; name: string; category?: string }> }) => {
+      .then((data: { voices?: Array<{ voice_id: string; name: string; category?: string; preview_url?: string }> }) => {
         const list = (data.voices ?? [])
-          .map(v => ({ id: v.voice_id, name: v.name }))
+          .map(v => ({ id: v.voice_id, name: v.name, previewUrl: v.preview_url }))
           .sort((a, b) => a.name.localeCompare(b.name))
         setElVoices(list.length > 0 ? list : FREE_VOICES)
       })
       .catch(() => setElVoices(FREE_VOICES))
       .finally(() => setElVoicesLoading(false))
   }, [elevenLabsKey])
+
+  // Voice preview player
+  const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null)
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null)
+  function playVoicePreview(voiceId: string, previewUrl?: string) {
+    if (!previewUrl) return
+    if (previewingVoiceId === voiceId) {
+      previewAudioRef.current?.pause()
+      previewAudioRef.current = null
+      setPreviewingVoiceId(null)
+      return
+    }
+    previewAudioRef.current?.pause()
+    const audio = new Audio(previewUrl)
+    previewAudioRef.current = audio
+    setPreviewingVoiceId(voiceId)
+    audio.play().catch(() => {})
+    audio.onended = () => { previewAudioRef.current = null; setPreviewingVoiceId(null) }
+  }
 
   // ElevenLabs voice overrides — persisted per character ID
   const [voiceOverrides, setVoiceOverrides] = useState<Record<string, string>>(() => {
@@ -504,6 +523,9 @@ ${rows}
   }
 
   function handleStart() {
+    previewAudioRef.current?.pause()
+    previewAudioRef.current = null
+    setPreviewingVoiceId(null)
     practice.startSession(effectiveCharacter())
   }
 
@@ -669,9 +691,15 @@ ${rows}
                           value={elevenLabsKey
                             ? (voiceOverrides[sp.id] ?? DEFAULT_VOICE_ID)
                             : (kokoroVoiceOverrides[sp.id] ?? DEFAULT_KOKORO_VOICE)}
-                          onChange={e => elevenLabsKey
-                            ? setVoiceForCharacter(sp.id, e.target.value)
-                            : setKokoroVoiceForCharacter(sp.id, e.target.value)}
+                          onChange={e => {
+                            if (elevenLabsKey) {
+                              setVoiceForCharacter(sp.id, e.target.value)
+                              const v = elVoices.find(v => v.id === e.target.value)
+                              if (v?.previewUrl) playVoicePreview(v.id, v.previewUrl)
+                            } else {
+                              setKokoroVoiceForCharacter(sp.id, e.target.value)
+                            }
+                          }}
                           disabled={elVoicesLoading}
                           style={{ flex: 1, fontSize: 10, padding: '2px 3px', borderRadius: 4, border: '1px solid var(--border-medium)', background: 'var(--bg-elevated)', color: 'var(--text)', cursor: 'pointer', minWidth: 0 }}
                         >
@@ -682,6 +710,31 @@ ${rows}
                             : KOKORO_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
                           }
                         </select>
+                        {elevenLabsKey && (() => {
+                          const selId = voiceOverrides[sp.id] ?? DEFAULT_VOICE_ID
+                          const voice = elVoices.find(v => v.id === selId)
+                          if (!voice?.previewUrl) return null
+                          const isPreviewing = previewingVoiceId === selId
+                          return (
+                            <button
+                              onClick={() => playVoicePreview(selId, voice.previewUrl)}
+                              title={isPreviewing ? 'Stop preview' : 'Preview voice'}
+                              style={{
+                                background: isPreviewing ? '#7c3aed' : 'var(--bg-elevated)',
+                                border: `1px solid ${isPreviewing ? '#7c3aed' : 'var(--border-medium)'}`,
+                                borderRadius: 4,
+                                color: isPreviewing ? '#fff' : 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                                fontSize: 10,
+                                padding: '2px 5px',
+                                lineHeight: 1
+                              }}
+                            >
+                              {isPreviewing ? '■' : '▶'}
+                            </button>
+                          )
+                        })()}
                       </div>
                     ))}
                     <div style={{ padding: '2px 8px 4px', color: 'var(--text-faint)', fontSize: 9 }}>

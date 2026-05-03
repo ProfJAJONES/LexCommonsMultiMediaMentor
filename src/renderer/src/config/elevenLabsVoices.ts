@@ -1,6 +1,7 @@
 export interface VoiceOption {
   id: string
   name: string
+  previewUrl?: string
 }
 
 /** Free-tier voices available on every ElevenLabs account. */
