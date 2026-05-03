@@ -72,6 +72,27 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
   const kb = useAIKnowledgeBase(domain)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
+  // ElevenLabs voice list — fetched live from the API so the user's full
+  // collection (including shared/library voices) appears automatically.
+  const [elVoices, setElVoices] = useState<VoiceOption[]>(FREE_VOICES)
+  const [elVoicesLoading, setElVoicesLoading] = useState(false)
+  useEffect(() => {
+    if (!elevenLabsKey) { setElVoices(FREE_VOICES); return }
+    setElVoicesLoading(true)
+    fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: { 'xi-api-key': elevenLabsKey }
+    })
+      .then(r => r.json())
+      .then((data: { voices?: Array<{ voice_id: string; name: string; category?: string }> }) => {
+        const list = (data.voices ?? [])
+          .map(v => ({ id: v.voice_id, name: v.name }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+        setElVoices(list.length > 0 ? list : FREE_VOICES)
+      })
+      .catch(() => setElVoices(FREE_VOICES))
+      .finally(() => setElVoicesLoading(false))
+  }, [elevenLabsKey])
+
   // ElevenLabs voice overrides — persisted per character ID
   const [voiceOverrides, setVoiceOverrides] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem('mm_voice_overrides') ?? '{}') } catch { return {} }
@@ -651,17 +672,24 @@ ${rows}
                           onChange={e => elevenLabsKey
                             ? setVoiceForCharacter(sp.id, e.target.value)
                             : setKokoroVoiceForCharacter(sp.id, e.target.value)}
+                          disabled={elVoicesLoading}
                           style={{ flex: 1, fontSize: 10, padding: '2px 3px', borderRadius: 4, border: '1px solid var(--border-medium)', background: 'var(--bg-elevated)', color: 'var(--text)', cursor: 'pointer', minWidth: 0 }}
                         >
                           {elevenLabsKey
-                            ? FREE_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
+                            ? elVoicesLoading
+                              ? <option>Loading voices…</option>
+                              : elVoices.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
                             : KOKORO_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)
                           }
                         </select>
                       </div>
                     ))}
                     <div style={{ padding: '2px 8px 4px', color: 'var(--text-faint)', fontSize: 9 }}>
-                      {elevenLabsKey ? 'ElevenLabs · saved per speaker' : 'Kokoro · saved per speaker'}
+                      {elevenLabsKey
+                        ? elVoicesLoading
+                          ? 'ElevenLabs · loading your voices…'
+                          : `ElevenLabs · ${elVoices.length} voice${elVoices.length !== 1 ? 's' : ''} · saved per speaker`
+                        : 'Kokoro · saved per speaker'}
                     </div>
                   </div>
                 </div>
