@@ -335,6 +335,50 @@ function QuestionEditor({ question, index, onChange, onRemove }: {
           style={{ ...inputStyle, marginBottom: 8 }}
         />
       )}
+
+      {/* Trigger — where in the presentation this question fires */}
+      <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8, marginTop: 4 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
+          Trigger (optional)
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>On slide # (1-based)</span>
+            <input
+              type="number"
+              min={1}
+              value={question.triggerSlide !== undefined ? question.triggerSlide + 1 : ''}
+              onChange={e => {
+                const v = e.target.value === '' ? undefined : Math.max(1, parseInt(e.target.value, 10)) - 1
+                onChange({ triggerSlide: v, triggerTimestamp: v !== undefined ? undefined : question.triggerTimestamp })
+              }}
+              placeholder="e.g. 3"
+              style={{ ...inputStyle, padding: '4px 8px' }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>At video time (seconds)</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={question.triggerTimestamp !== undefined ? question.triggerTimestamp : ''}
+              onChange={e => {
+                const v = e.target.value === '' ? undefined : Math.max(0, parseFloat(e.target.value))
+                onChange({ triggerTimestamp: v, triggerSlide: v !== undefined ? undefined : question.triggerSlide })
+              }}
+              placeholder="e.g. 90"
+              style={{ ...inputStyle, padding: '4px 8px' }}
+            />
+          </label>
+        </div>
+        {(question.triggerSlide !== undefined || question.triggerTimestamp !== undefined) && (
+          <div style={{ marginTop: 5, fontSize: 10, color: '#7c3aed' }}>
+            {question.triggerSlide !== undefined && `Pops up when student reaches slide ${question.triggerSlide + 1}`}
+            {question.triggerTimestamp !== undefined && `Pops up at ${Math.floor(question.triggerTimestamp / 60)}:${String(Math.floor(question.triggerTimestamp % 60)).padStart(2, '0')} in the video`}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

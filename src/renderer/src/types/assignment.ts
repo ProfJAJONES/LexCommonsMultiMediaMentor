@@ -6,6 +6,8 @@ export interface QuizQuestion {
   correctAnswer?: string | number  // MCQ: option index; true_false: 'true'/'false'; short_answer: model answer
   points: number
   allowVoiceAnswer?: boolean
+  triggerSlide?: number        // 0-based: pop up when student reaches this slide
+  triggerTimestamp?: number    // seconds: pop up when video passes this point
 }
 
 export interface RubricCriterion {

@@ -20,6 +20,7 @@ import { CountdownTimer } from './components/CountdownTimer'
 import { BlackHoleSetup } from './components/BlackHoleSetup'
 import { PresentationPanel } from './components/PresentationPanel'
 import { QuizPanel } from './components/QuizPanel'
+import { QuizOverlay } from './components/QuizOverlay'
 import { AssignmentBuilder } from './components/AssignmentBuilder'
 import { useAudioAnalysis } from './hooks/useAudioAnalysis'
 import { useAssignment } from './hooks/useAssignment'
@@ -112,6 +113,8 @@ export default function App() {
   const [showAssignmentBuilder, setShowAssignmentBuilder] = useState(false)
   const [slideChanges, setSlideChanges] = useState<Array<{ slideIndex: number; timestamp: number }>>([])
   const [isExportingSubmission, setIsExportingSubmission] = useState(false)
+  // The question currently showing as a trigger overlay (slide or timestamp)
+  const [triggeredQuestion, setTriggeredQuestion] = useState<import('./types/assignment').QuizQuestion | null>(null)
 
   // Fetch available audio input devices on mount and whenever permissions change
   function refreshMicDevices() {
@@ -1011,6 +1014,18 @@ ${ann.comments.length === 0
     if (videoRef.current) videoRef.current.currentTime = t
   }
 
+  // Check for timestamp-triggered quiz questions as the video plays
+  useEffect(() => {
+    if (!triggeredQuestion && quizQuestions.length > 0) {
+      const q = quiz.checkTimestampTrigger(currentTime)
+      if (q) {
+        videoRef.current?.pause()
+        setTriggeredQuestion(q)
+        quiz.markTriggered(q.id)
+      }
+    }
+  }, [currentTime])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // Compute overlay dimensions from the rendered video element
   const [overlayRect, setOverlayRect] = useState({ w: 0, h: 0 })
   const videoWrapRef = useRef<HTMLDivElement>(null)
@@ -1406,10 +1421,21 @@ ${ann.comments.length === 0
             />
           )}
           {activeTab === 'slides' && (
-            <div style={{ height: '100%', minHeight: 400 }}>
+            <div style={{ height: '100%', minHeight: 400, position: 'relative' }}>
               <PresentationPanel
                 pdfData={assignment.slidesPdfData}
-                onSlideChange={event => setSlideChanges(prev => [...prev, event])}
+                triggeredQuestion={triggeredQuestion}
+                triggeredAttempt={triggeredQuestion ? (quiz.attempts.find(a => a.questionId === triggeredQuestion.id) ?? null) : null}
+                apiKey={ai.apiKey}
+                provider={ai.provider}
+                onSlideChange={event => {
+                  setSlideChanges(prev => [...prev, event])
+                  const q = quiz.checkSlideTrigger(event.slideIndex)
+                  if (q) { quiz.markTriggered(q.id); setTriggeredQuestion(q) }
+                }}
+                onAnswer={quiz.submitAnswer}
+                onAIGrade={quiz.applyAIGrade}
+                onOverlayDismiss={() => setTriggeredQuestion(null)}
               />
             </div>
           )}
@@ -2112,6 +2138,19 @@ ${ann.comments.length === 0
                     height={overlayRect.h}
                   />
                 </div>
+              )}
+              {/* Timestamp-triggered quiz overlay over the video */}
+              {triggeredQuestion?.triggerTimestamp !== undefined && (
+                <QuizOverlay
+                  question={triggeredQuestion}
+                  attempt={quiz.attempts.find(a => a.questionId === triggeredQuestion.id) ?? null}
+                  apiKey={ai.apiKey}
+                  provider={ai.provider}
+                  context="video"
+                  onAnswer={quiz.submitAnswer}
+                  onAIGrade={quiz.applyAIGrade}
+                  onDismiss={() => { setTriggeredQuestion(null); videoRef.current?.play() }}
+                />
               )}
             </>
           ) : mediaMode === 'webcam' ? (

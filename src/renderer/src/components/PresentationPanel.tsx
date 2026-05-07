@@ -1,22 +1,34 @@
 import React, { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
+import type { QuizQuestion, QuizAttempt } from '../types/assignment'
+import { QuizOverlay } from './QuizOverlay'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url
 ).href
 
-interface SlideEvent {
+export interface SlideEvent {
   slideIndex: number  // 0-based
   timestamp: number   // Date.now()
 }
 
 interface Props {
   pdfData: Uint8Array | null
+  triggeredQuestion: QuizQuestion | null
+  triggeredAttempt: QuizAttempt | null
+  apiKey: string
+  provider: string
   onSlideChange?: (event: SlideEvent) => void
+  onAnswer: (questionId: string, answer: string | number | null) => void
+  onAIGrade: (questionId: string, score: number, feedback: string) => void
+  onOverlayDismiss: () => void
 }
 
-export function PresentationPanel({ pdfData, onSlideChange }: Props) {
+export function PresentationPanel({
+  pdfData, triggeredQuestion, triggeredAttempt, apiKey, provider,
+  onSlideChange, onAnswer, onAIGrade, onOverlayDismiss
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(0)
@@ -72,15 +84,16 @@ export function PresentationPanel({ pdfData, onSlideChange }: Props) {
     return () => { cancelled = true }
   }, [currentPage, pageCount])
 
-  // Keyboard navigation
+  // Keyboard navigation — blocked while a quiz overlay is open
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (triggeredQuestion) return
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') goTo(currentPage + 1)
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') goTo(currentPage - 1)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [currentPage, pageCount])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentPage, pageCount, triggeredQuestion])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const goTo = (page: number) => {
     const clamped = Math.max(1, Math.min(pageCount, page))
@@ -125,12 +138,26 @@ export function PresentationPanel({ pdfData, onSlideChange }: Props) {
         />
       </div>
 
-      {/* Navigation controls */}
+      {/* Quiz overlay — blocks the slide when a triggered question fires */}
+      {triggeredQuestion && (
+        <QuizOverlay
+          question={triggeredQuestion}
+          attempt={triggeredAttempt}
+          apiKey={apiKey}
+          provider={provider}
+          context="slide"
+          onAnswer={onAnswer}
+          onAIGrade={onAIGrade}
+          onDismiss={onOverlayDismiss}
+        />
+      )}
+
+      {/* Navigation controls — disabled while overlay is open */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', flexShrink: 0, paddingBottom: 4 }}>
         <button
           onClick={() => goTo(currentPage - 1)}
-          disabled={currentPage <= 1}
-          style={{ ...navBtn, opacity: currentPage <= 1 ? 0.3 : 1, cursor: currentPage <= 1 ? 'default' : 'pointer' }}
+          disabled={currentPage <= 1 || !!triggeredQuestion}
+          style={{ ...navBtn, opacity: (currentPage <= 1 || !!triggeredQuestion) ? 0.3 : 1, cursor: (currentPage <= 1 || !!triggeredQuestion) ? 'default' : 'pointer' }}
           title="Previous slide (← arrow key)"
         >
           ‹ Prev
@@ -140,8 +167,8 @@ export function PresentationPanel({ pdfData, onSlideChange }: Props) {
         </span>
         <button
           onClick={() => goTo(currentPage + 1)}
-          disabled={currentPage >= pageCount}
-          style={{ ...navBtn, opacity: currentPage >= pageCount ? 0.3 : 1, cursor: currentPage >= pageCount ? 'default' : 'pointer' }}
+          disabled={currentPage >= pageCount || !!triggeredQuestion}
+          style={{ ...navBtn, opacity: (currentPage >= pageCount || !!triggeredQuestion) ? 0.3 : 1, cursor: (currentPage >= pageCount || !!triggeredQuestion) ? 'default' : 'pointer' }}
           title="Next slide (→ arrow key)"
         >
           Next ›
