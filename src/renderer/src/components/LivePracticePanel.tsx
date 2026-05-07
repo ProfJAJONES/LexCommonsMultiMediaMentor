@@ -47,11 +47,14 @@ interface Props {
   getSigningState?: () => SigningState | null
   /** Called when the student taps the speak button to start recording their turn */
   onStudentStartedSpeaking?: () => void
+  /** When provided, TTS audio is routed through the shared capture stream so it lands in the recording. */
+  getSharedAudioCtx?: () => AudioContext | null
+  getSharedAnalyser?: () => AnalyserNode | null
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, selectedMicId, elevenLabsKey, onSessionData, getSigningState, onStudentStartedSpeaking }: Props) {
+export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, selectedMicId, elevenLabsKey, onSessionData, getSigningState, onStudentStartedSpeaking, getSharedAudioCtx, getSharedAnalyser }: Props) {
   const characters = PRACTICE_CHARACTERS[domain]
   const [character, setCharacter] = useState<PracticeCharacter>(characters[0])
   const [ttsEnabled, setTtsEnabled] = useState(true)
@@ -301,7 +304,9 @@ export function LivePracticePanel({ apiKey, provider, domain, selectedCameraId, 
           text: textToSpeak,
           voiceId: voiceForCharacter(speakerId, voiceOverrides),
           apiKey: elevenLabsKey ?? '',
-          kokoroVoice: kokoroVoiceOverrides[speakerId] ?? DEFAULT_KOKORO_VOICE
+          kokoroVoice: kokoroVoiceOverrides[speakerId] ?? DEFAULT_KOKORO_VOICE,
+          sharedAudioCtx: getSharedAudioCtx?.() ?? undefined,
+          sharedAudioDestination: getSharedAnalyser?.() ?? undefined
         }).then(result => {
           // If we silently fell back to browser TTS, surface the reason once.
           if (result.fallbackReason) setTtsFallbackReason(result.fallbackReason)

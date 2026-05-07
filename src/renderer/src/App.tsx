@@ -268,7 +268,7 @@ export default function App() {
     : audioSource === 'blackhole'  ? blackholeStream
     : mediaMode === 'webcam'       ? webcamAudioStream
     : null
-  const { state: audio, start: startAudio, stop: stopAudio, reset: resetAudio, prepare: prepareAudio, getCaptureStream } = useAudioAnalysis(
+  const { state: audio, start: startAudio, stop: stopAudio, reset: resetAudio, prepare: prepareAudio, getCaptureStream, getAudioCtx, getAnalyser } = useAudioAnalysis(
     videoRef,
     analysisStream
   )
@@ -412,6 +412,7 @@ export default function App() {
           decibelData: audio.dbHistory,
           movementData: movementHistory,
           narrative: narrativeRef.current,
+          practiceMessages: practiceMessagesRef.current.length > 0 ? practiceMessagesRef.current : undefined,
         },
         slug
       )
@@ -537,6 +538,7 @@ ${commentLines}`
           decibelData: audio.dbHistory,
           movementData: movementHistory,
           narrative: narrativeRef.current,
+          practiceMessages: practiceMessagesRef.current.length > 0 ? practiceMessagesRef.current : undefined,
         },
         slug
       )
@@ -1400,6 +1402,8 @@ ${ann.comments.length === 0
               onStudentStartedSpeaking={() => {
                 if (camera.cameraState === 'previewing') camera.startRecording()
               }}
+              getSharedAudioCtx={getAudioCtx}
+              getSharedAnalyser={getAnalyser}
             />
           )}
           {activeTab === 'camera' && (

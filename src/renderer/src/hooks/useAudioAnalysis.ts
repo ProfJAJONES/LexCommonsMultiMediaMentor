@@ -266,5 +266,8 @@ export function useAudioAnalysis(
   // Use this in click handlers instead of the stale render-snapshot `captureStream` field.
   const getCaptureStream = useCallback(() => destNodeRef.current?.stream ?? null, [])
 
-  return { state, start, stop, reset, prepare, captureStream: destNodeRef.current?.stream ?? null, getCaptureStream }
+  const getAudioCtx  = useCallback(() => audioCtxRef.current,  [])
+  const getAnalyser  = useCallback(() => analyserRef.current,  [])
+
+  return { state, start, stop, reset, prepare, captureStream: destNodeRef.current?.stream ?? null, getCaptureStream, getAudioCtx, getAnalyser }
 }

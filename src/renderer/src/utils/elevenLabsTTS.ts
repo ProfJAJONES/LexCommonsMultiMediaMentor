@@ -7,7 +7,7 @@
  * Final fallback is browser SpeechSynthesis if Kokoro fails.
  */
 
-import { speakKokoro, cancelKokoro } from './kokoroTTS'
+import { speakKokoro, speakKokoroOnCtx, cancelKokoro } from './kokoroTTS'
 
 let currentAudio: HTMLAudioElement | null = null
 let currentAbort: AbortController | null = null
@@ -23,6 +23,10 @@ export interface SpeakOptions {
   stability?: number
   /** ElevenLabs similarity boost (0-1). */
   similarityBoost?: number
+  /** When provided, TTS audio is routed through this context so it lands in the session recording. */
+  sharedAudioCtx?: AudioContext
+  /** Destination node (analyser) within sharedAudioCtx to connect TTS output to. */
+  sharedAudioDestination?: AudioNode
 }
 
 export interface SpeakResult {
@@ -61,7 +65,7 @@ async function speakBrowser(text: string): Promise<void> {
 }
 
 async function speakElevenLabs(opts: SpeakOptions): Promise<void> {
-  const { text, voiceId, apiKey, stability = 0.5, similarityBoost = 0.75 } = opts
+  const { text, voiceId, apiKey, stability = 0.5, similarityBoost = 0.75, sharedAudioCtx, sharedAudioDestination } = opts
   const controller = new AbortController()
   currentAbort = controller
 
@@ -88,11 +92,27 @@ async function speakElevenLabs(opts: SpeakOptions): Promise<void> {
   const audio = new Audio(audioUrl)
   currentAudio = audio
 
+  // Route through the shared Web Audio context so the output lands in the capture stream.
+  // createMediaElementSource hijacks the element's default output, so we must reconnect
+  // to ctx.destination for speakers to work.
+  let mediaSrc: MediaElementAudioSourceNode | null = null
+  if (sharedAudioCtx && sharedAudioDestination) {
+    try {
+      mediaSrc = sharedAudioCtx.createMediaElementSource(audio)
+      mediaSrc.connect(sharedAudioDestination)    // → analyser → destNode (capture)
+      mediaSrc.connect(sharedAudioCtx.destination) // → speakers
+    } catch {
+      // If routing fails (e.g. element already connected), fall back to direct playback
+      mediaSrc = null
+    }
+  }
+
   return new Promise<void>((resolve, reject) => {
     const cleanup = () => {
       URL.revokeObjectURL(audioUrl)
       if (currentAudio === audio) currentAudio = null
       if (currentAbort === controller) currentAbort = null
+      try { mediaSrc?.disconnect() } catch { /* ok */ }
     }
     audio.addEventListener('ended', () => { cleanup(); resolve() })
     audio.addEventListener('error', () => { cleanup(); reject(new Error('Audio playback failed')) })
@@ -110,8 +130,13 @@ function isLibraryVoiceError(reason: string): boolean {
 
 export async function speak(opts: SpeakOptions): Promise<SpeakResult> {
   cancelSpeech()
-  const { text, voiceId, apiKey, kokoroVoice } = opts
+  const { text, voiceId, apiKey, kokoroVoice, sharedAudioCtx, sharedAudioDestination } = opts
   if (!text.trim()) return { engine: 'browser' }
+
+  const kokoroSpeak = (t: string, v?: string) =>
+    sharedAudioCtx && sharedAudioDestination
+      ? speakKokoroOnCtx(t, v, sharedAudioCtx, sharedAudioDestination)
+      : speakKokoro(t, v)
 
   // ── ElevenLabs path ───────────────────────────────────────────────────────
   if (apiKey && voiceId) {
@@ -134,7 +159,7 @@ export async function speak(opts: SpeakOptions): Promise<SpeakResult> {
 
       // Fall through to Kokoro
       try {
-        await speakKokoro(text, kokoroVoice)
+        await kokoroSpeak(text, kokoroVoice)
         return { engine: 'kokoro', fallbackReason: reason }
       } catch {
         await speakBrowser(text)
@@ -145,7 +170,7 @@ export async function speak(opts: SpeakOptions): Promise<SpeakResult> {
 
   // ── Kokoro path (no ElevenLabs key) ───────────────────────────────────────
   try {
-    await speakKokoro(text, kokoroVoice)
+    await kokoroSpeak(text, kokoroVoice)
     return { engine: 'kokoro' }
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)

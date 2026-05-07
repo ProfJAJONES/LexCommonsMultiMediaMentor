@@ -116,3 +116,35 @@ export async function speakKokoro(text: string, voice = DEFAULT_KOKORO_VOICE): P
     src.start()
   })
 }
+
+/**
+ * Like speakKokoro but routes audio through a caller-provided AudioContext and
+ * destination node (typically the shared analyser from useAudioAnalysis).
+ * This ensures TTS audio is captured by the session recorder.
+ * The provided ctx is never closed.
+ */
+export async function speakKokoroOnCtx(
+  text: string,
+  voice = DEFAULT_KOKORO_VOICE,
+  ctx: AudioContext,
+  destination: AudioNode
+): Promise<void> {
+  cancelKokoro()
+  const tts = await load()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: { audio: any; sampling_rate: number } = await tts.generate(text.trim(), { voice })
+
+  const buf = ctx.createBuffer(1, result.audio.length, result.sampling_rate)
+  buf.copyToChannel(result.audio, 0)
+  const src = ctx.createBufferSource()
+  _src = src
+  // Don't set _ctx — caller owns the context, cancelKokoro must not close it
+  src.buffer = buf
+  src.connect(destination)       // → analyser → destNode (capture stream)
+  src.connect(ctx.destination)   // → speakers (direct, even if analyser disconnected from dest)
+
+  await new Promise<void>(resolve => {
+    src.onended = () => { _src = null; resolve() }
+    src.start()
+  })
+}

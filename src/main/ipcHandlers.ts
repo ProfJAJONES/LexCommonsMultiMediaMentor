@@ -296,6 +296,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
       decibelData?: Array<{ t: number; db: number }>
       movementData?: Array<{ t: number; score: number }>
       narrative?: string
+      practiceMessages?: Array<{ speaker: string; text: string; timestamp: number }>
     },
     slug: string
   ) => {
@@ -317,7 +318,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
       mkdirSync(tmpDir, { recursive: true })
 
       // ── 1. JSON (always — supports round-trip re-import) ────────────────────
-      const fullSessionData = {
+      const fullSessionData: Record<string, unknown> = {
         fileName: notesPayload.fileName,
         exportedAt: notesPayload.exportedAt,
         comments: notesPayload.comments ?? [],
@@ -325,6 +326,9 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
         decibelData: notesPayload.decibelData ?? [],
         movementData: notesPayload.movementData ?? [],
         narrative: notesPayload.narrative ?? '',
+      }
+      if (notesPayload.practiceMessages?.length) {
+        fullSessionData.practiceMessages = notesPayload.practiceMessages
       }
       writeFileSync(join(tmpDir, 'session-data.json'), JSON.stringify(fullSessionData, null, 2), 'utf-8')
 
