@@ -99,6 +99,23 @@ contextBridge.exposeInMainWorld('api', {
 
   storeSet: (key: string, value: string | null): Promise<void> =>
     ipcRenderer.invoke('store:set', key, value),
+
+  openAssignment: (): Promise<{ assignment: object; slidesTempPath: string | null } | { error: string } | null> =>
+    ipcRenderer.invoke('dialog:openAssignment'),
+
+  saveAssignment: (assignment: object, slidesPdfPath: string | null): Promise<string | null> =>
+    ipcRenderer.invoke('dialog:saveAssignment', assignment, slidesPdfPath),
+
+  readFileAsBuffer: (filePath: string): Promise<Uint8Array | null> =>
+    ipcRenderer.invoke('file:readAsBuffer', filePath),
+
+  exportSubmission: (payload: {
+    assignmentTitle: string
+    webmBuffer: Uint8Array | null
+    quizResults: object | null
+    sessionData: object
+  }): Promise<string | null> =>
+    ipcRenderer.invoke('desktop:exportSubmission', payload),
 })
 
 export type CaptureSource = {

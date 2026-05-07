@@ -18,7 +18,12 @@ import type { SigningState } from './components/BodyTracker'
 import { Metronome } from './components/Metronome'
 import { CountdownTimer } from './components/CountdownTimer'
 import { BlackHoleSetup } from './components/BlackHoleSetup'
+import { PresentationPanel } from './components/PresentationPanel'
+import { QuizPanel } from './components/QuizPanel'
+import { AssignmentBuilder } from './components/AssignmentBuilder'
 import { useAudioAnalysis } from './hooks/useAudioAnalysis'
+import { useAssignment } from './hooks/useAssignment'
+import { useQuiz } from './hooks/useQuiz'
 import { useAnnotations } from './hooks/useAnnotations'
 import { useScreenRecorder } from './hooks/useScreenRecorder'
 import { useCameraInput } from './hooks/useCameraInput'
@@ -33,7 +38,7 @@ import type { Annotation } from './types'
 type AnnotationTool = Annotation['type'] | null
 const COLORS = ['#f87171', '#fbbf24', '#34d399', '#38bdf8', '#a78bfa', '#f472b6']
 
-type SidebarTab = 'feedback' | 'annotations' | 'ai' | 'camera' | 'report' | 'practice'
+type SidebarTab = 'feedback' | 'annotations' | 'ai' | 'camera' | 'report' | 'practice' | 'slides' | 'quiz'
 type AudioSource = 'video' | 'mic' | 'blackhole'
 
 export default function App() {
@@ -99,6 +104,14 @@ export default function App() {
   const [sidebarWidth, setSidebarWidth] = useState(520)
   const [videoAreaHeight, setVideoAreaHeight] = useState(300)
   const [bodyTrackerWidth, setBodyTrackerWidth] = useState(220)
+
+  // Assignment & quiz
+  const assignment = useAssignment()
+  const quizQuestions = assignment.assignment?.quiz?.questions ?? []
+  const quiz = useQuiz(quizQuestions, assignment.assignment?.title ?? '')
+  const [showAssignmentBuilder, setShowAssignmentBuilder] = useState(false)
+  const [slideChanges, setSlideChanges] = useState<Array<{ slideIndex: number; timestamp: number }>>([])
+  const [isExportingSubmission, setIsExportingSubmission] = useState(false)
 
   // Fetch available audio input devices on mount and whenever permissions change
   function refreshMicDevices() {
@@ -690,6 +703,41 @@ ${commentLines}`
     }
   }
 
+  async function handleOpenAssignment() {
+    await assignment.openAssignment()
+  }
+
+  async function handleExportSubmission() {
+    if (!assignment.assignment) return
+    setIsExportingSubmission(true)
+    try {
+      // Collect webcam recording bytes if any
+      const webmBuffer: Uint8Array | null = webcamChunksRef.current.length > 0
+        ? new Uint8Array(await new Blob(webcamChunksRef.current).arrayBuffer())
+        : null
+
+      const quizResults = quiz.completed ? quiz.getResults() : null
+      const sessionData = {
+        assignmentTitle: assignment.assignment.title,
+        exportedAt: new Date().toISOString(),
+        slideChanges,
+        comments: ann.comments,
+        pitchData: audio.pitchHistory,
+        decibelData: audio.dbHistory,
+        quizResults
+      }
+
+      await window.api.exportSubmission({
+        assignmentTitle: assignment.assignment.title,
+        webmBuffer,
+        quizResults,
+        sessionData
+      })
+    } finally {
+      setIsExportingSubmission(false)
+    }
+  }
+
   async function handleImport() {
     if (mediaLoadingRef.current) return
     mediaLoadingRef.current = true
@@ -1049,6 +1097,9 @@ ${ann.comments.length === 0
       {/* BlackHole setup modal */}
       {showBlackHoleSetup && <BlackHoleSetup onClose={() => setShowBlackHoleSetup(false)} />}
 
+      {/* Assignment builder modal */}
+      {showAssignmentBuilder && <AssignmentBuilder onClose={() => setShowAssignmentBuilder(false)} />}
+
       {/* Sidebar */}
       <aside style={{ ...styles.sidebar, width: sidebarWidth, minWidth: sidebarWidth, display: focusView ? 'none' : undefined }}>
         {/* Traffic-light clearance — draggable titlebar zone */}
@@ -1164,6 +1215,17 @@ ${ann.comments.length === 0
             <div style={{ fontSize: 10, color: '#064e3b', textAlign: 'center', lineHeight: 1.3 }}>
               {ai.apiKey ? 'Auto-generates AI narrative · video · PDF · DOCX · data' : 'Bundles video · PDF report · DOCX · data'}
             </div>
+            {/* Assignment submission export — shown when assignment loaded */}
+            {assignment.assignment && (
+              <button
+                onClick={handleExportSubmission}
+                disabled={isExportingSubmission}
+                title="Bundle your recording, quiz results, and session data into a submission ZIP for your professor"
+                style={{ ...btnStyle(isExportingSubmission ? '#94a3b8' : '#7c3aed'), width: '100%', fontSize: 11, fontWeight: 700 }}
+              >
+                {isExportingSubmission ? '⏳ Exporting…' : '📤 Export Submission'}
+              </button>
+            )}
             {/* Close without auto-save — user explicitly saves with the button above */}
             <button
               onClick={doClear}
@@ -1172,6 +1234,50 @@ ${ann.comments.length === 0
             >
               ✕ Close Project
             </button>
+          </div>
+        )}
+
+        {/* Assignment banner */}
+        {assignment.assignment && (
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid #ddd6fe', background: '#f5f3ff', flexShrink: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 12, color: '#6d28d9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {assignment.assignment.title}
+                </div>
+                {assignment.assignment.dueDate && (
+                  <div style={{ fontSize: 10, color: '#7c3aed', marginTop: 1 }}>
+                    Due {assignment.assignment.dueDate}
+                  </div>
+                )}
+                {assignment.assignment.instructions && (
+                  <div style={{ fontSize: 10, color: '#475569', marginTop: 3, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {assignment.assignment.instructions}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={assignment.clearAssignment}
+                title="Clear assignment"
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 14, padding: '0 2px', flexShrink: 0 }}
+              >
+                ✕
+              </button>
+            </div>
+            {assignment.assignment.rubric && assignment.assignment.rubric.length > 0 && (
+              <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                {assignment.assignment.rubric.map((r, i) => (
+                  <span key={i} style={{ background: '#ede9fe', color: '#6d28d9', borderRadius: 4, fontSize: 9, padding: '1px 5px', fontWeight: 600 }}>
+                    {r.criterion} ×{r.weight}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {assignment.error && (
+          <div style={{ padding: '6px 12px', background: '#fef2f2', borderBottom: '1px solid #fecaca', fontSize: 11, color: '#dc2626' }}>
+            {assignment.error}
           </div>
         )}
 
@@ -1190,6 +1296,32 @@ ${ann.comments.length === 0
               {{ feedback: 'Feedback', annotations: 'Notes', ai: 'AI', practice: 'Practice', camera: 'Camera', report: 'Report' }[tab]}
             </button>
           ))}
+          {assignment.slidesPdfData && (
+            <button
+              onClick={() => setActiveTab('slides')}
+              style={{
+                ...styles.tab,
+                background: activeTab === 'slides' ? '#7c3aed' : 'transparent',
+                color: activeTab === 'slides' ? '#fff' : '#7c3aed',
+                fontWeight: 600
+              }}
+            >
+              Slides
+            </button>
+          )}
+          {quizQuestions.length > 0 && (
+            <button
+              onClick={() => setActiveTab('quiz')}
+              style={{
+                ...styles.tab,
+                background: activeTab === 'quiz' ? '#059669' : 'transparent',
+                color: activeTab === 'quiz' ? '#fff' : '#059669',
+                fontWeight: 600
+              }}
+            >
+              Quiz
+            </button>
+          )}
         </div>
 
         {/* Sidebar content */}
@@ -1271,6 +1403,31 @@ ${ann.comments.length === 0
               onPauseRecording={camera.pauseRecording}
               onResumeRecording={camera.resumeRecording}
               onStopRecording={camera.stopRecording}
+            />
+          )}
+          {activeTab === 'slides' && (
+            <div style={{ height: '100%', minHeight: 400 }}>
+              <PresentationPanel
+                pdfData={assignment.slidesPdfData}
+                onSlideChange={event => setSlideChanges(prev => [...prev, event])}
+              />
+            </div>
+          )}
+          {activeTab === 'quiz' && (
+            <QuizPanel
+              questions={quizQuestions}
+              currentIndex={quiz.currentIndex}
+              currentQuestion={quiz.currentQuestion}
+              currentAttempt={quiz.currentAttempt}
+              completed={quiz.completed}
+              results={quiz.completed ? quiz.getResults() : null}
+              apiKey={ai.apiKey}
+              provider={ai.provider}
+              onAnswer={quiz.submitAnswer}
+              onNext={quiz.next}
+              onPrev={quiz.prev}
+              onReset={quiz.reset}
+              onAIGrade={quiz.applyAIGrade}
             />
           )}
           {activeTab === 'report' && (
@@ -1521,6 +1678,23 @@ ${ann.comments.length === 0
           <button onClick={handleImport} style={btnStyle('#3b82f6')}>
             Import Video / Audio
           </button>
+          <button
+            onClick={handleOpenAssignment}
+            disabled={assignment.isLoading}
+            title="Open an assignment package (.zip) created by your professor"
+            style={btnStyle(assignment.assignment ? '#7c3aed' : '#6366f1')}
+          >
+            {assignment.isLoading ? '⏳' : assignment.assignment ? '📋 Assignment Loaded' : '📋 Open Assignment'}
+          </button>
+          {ai.role === 'professor' && (
+            <button
+              onClick={() => setShowAssignmentBuilder(true)}
+              title="Build an assignment package for students"
+              style={btnStyle('#7c3aed')}
+            >
+              Build Assignment
+            </button>
+          )}
           <button
             onClick={handleWebcam}
             style={{

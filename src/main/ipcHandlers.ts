@@ -1,6 +1,6 @@
 import { IpcMain, Dialog, shell, desktopCapturer, app, BrowserWindow, systemPreferences } from 'electron'
 import { execSync } from 'child_process'
-import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync, rmSync } from 'fs'
+import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync, rmSync, copyFileSync } from 'fs'
 import { join, basename, extname, resolve, normalize } from 'path'
 import { homedir } from 'os'
 import { tmpdir } from 'os'
@@ -707,6 +707,131 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
 
   ipcMain.on('window:minimize', (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize()
+  })
+
+  // Open an assignment package (.zip containing assignment.json + optional slides.pdf).
+  // Extracts to a temp dir and returns the parsed assignment + temp PDF path.
+  ipcMain.handle('dialog:openAssignment', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Open Assignment Package',
+      filters: [{ name: 'Assignment Package', extensions: ['zip'] }],
+      properties: ['openFile']
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+
+    const zipPath = result.filePaths[0]
+    const tmpDir = join(tmpdir(), `lmm-assignment-${Date.now()}`)
+    mkdirSync(tmpDir, { recursive: true })
+
+    try {
+      execSync(`unzip -o "${zipPath}" -d "${tmpDir}"`, { stdio: 'ignore' })
+      const assignmentPath = join(tmpDir, 'assignment.json')
+      if (!existsSync(assignmentPath)) {
+        return { error: 'Invalid assignment package — missing assignment.json' }
+      }
+      const assignment = JSON.parse(readFileSync(assignmentPath, 'utf-8'))
+      const slidesTempPath = existsSync(join(tmpDir, 'slides.pdf')) ? join(tmpDir, 'slides.pdf') : null
+      return { assignment, slidesTempPath }
+    } catch (e) {
+      try { rmSync(tmpDir, { recursive: true, force: true }) } catch { /* ok */ }
+      return { error: String(e) }
+    }
+  })
+
+  // Save an assignment package (.zip with assignment.json + optional slides.pdf).
+  ipcMain.handle('dialog:saveAssignment', async (_event, assignment: object, slidesPdfPath: string | null) => {
+    const title = (assignment as { title?: string }).title ?? 'assignment'
+    const safeName = title.replace(/[^a-z0-9_-]/gi, '-').slice(0, 40)
+    const result = await dialog.showSaveDialog({
+      title: 'Save Assignment Package',
+      defaultPath: join(homedir(), 'Desktop', `${safeName}.lmm.zip`),
+      filters: [{ name: 'Assignment Package', extensions: ['zip'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+
+    const zipPath = result.filePath.endsWith('.zip') ? result.filePath : result.filePath + '.zip'
+    const tmpDir = join(tmpdir(), `lmm-save-${Date.now()}`)
+    mkdirSync(tmpDir, { recursive: true })
+
+    try {
+      writeFileSync(join(tmpDir, 'assignment.json'), JSON.stringify(assignment, null, 2), 'utf-8')
+
+      if (slidesPdfPath) {
+        const safe = resolve(normalize(slidesPdfPath))
+        if (safe.startsWith(homedir() + '/') || safe.startsWith(tmpdir())) {
+          copyFileSync(safe, join(tmpDir, 'slides.pdf'))
+        }
+      }
+
+      execSync(`cd "${tmpDir}" && zip -r "${zipPath}" .`, { stdio: 'ignore' })
+      return zipPath
+    } finally {
+      try { rmSync(tmpDir, { recursive: true, force: true }) } catch { /* ok */ }
+    }
+  })
+
+  // Read a file as a Buffer (for pdfjs-dist in the renderer).
+  // Only allows reads from temp dir or user home dir to prevent arbitrary reads.
+  ipcMain.handle('file:readAsBuffer', (_event, filePath: string) => {
+    const safe = resolve(normalize(filePath))
+    if (!safe.startsWith(tmpdir()) && !safe.startsWith(homedir() + '/')) return null
+    try { return readFileSync(safe) } catch { return null }
+  })
+
+  // Export a student submission: video + quiz results + session data as a ZIP.
+  ipcMain.handle('desktop:exportSubmission', async (
+    _event,
+    payload: {
+      assignmentTitle: string
+      webmBuffer: Uint8Array | null
+      quizResults: object | null
+      sessionData: object
+    }
+  ) => {
+    const safeName = (payload.assignmentTitle || 'submission').replace(/[^a-z0-9_-]/gi, '-').slice(0, 40)
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const result = await dialog.showSaveDialog({
+      title: 'Export Submission',
+      defaultPath: join(homedir(), 'Desktop', `${safeName}-${dateStr}-submission.zip`),
+      filters: [{ name: 'ZIP Archive', extensions: ['zip'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+
+    const zipPath = result.filePath.endsWith('.zip') ? result.filePath : result.filePath + '.zip'
+    const tmpDir = join(tmpdir(), `lmm-submission-${Date.now()}`)
+    mkdirSync(tmpDir, { recursive: true })
+
+    try {
+      writeFileSync(join(tmpDir, 'session.json'), JSON.stringify(payload.sessionData, null, 2))
+      if (payload.quizResults) {
+        writeFileSync(join(tmpDir, 'quiz-results.json'), JSON.stringify(payload.quizResults, null, 2))
+      }
+
+      if (payload.webmBuffer && payload.webmBuffer.byteLength > 0) {
+        const tmpWebm = join(tmpDir, '_raw.webm')
+        const mp4Out  = join(tmpDir, 'recording.mp4')
+        writeFileSync(tmpWebm, Buffer.from(payload.webmBuffer))
+        try {
+          const ffmpegPath = getFfmpegPath()
+          ffmpeg.setFfmpegPath(ffmpegPath)
+          await new Promise<void>((res, rej) => {
+            ffmpeg(tmpWebm)
+              .videoCodec('libx264').videoBitrate('2000k')
+              .audioCodec('aac').audioBitrate('192k')
+              .outputOptions(['-movflags', 'faststart', '-pix_fmt', 'yuv420p'])
+              .save(mp4Out).on('end', res).on('error', rej)
+          })
+          try { unlinkSync(tmpWebm) } catch { /* ok */ }
+        } catch {
+          try { require('fs').renameSync(tmpWebm, join(tmpDir, 'recording.webm')) } catch { /* ok */ }
+        }
+      }
+
+      execSync(`cd "${tmpDir}" && zip -r "${zipPath}" .`, { stdio: 'ignore' })
+      return zipPath
+    } finally {
+      try { rmSync(tmpDir, { recursive: true, force: true }) } catch { /* ok */ }
+    }
   })
 
   // Reset the Renderer helper's TCC microphone entry so getUserMedia can prompt again.

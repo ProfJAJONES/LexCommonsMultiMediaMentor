@@ -40,6 +40,15 @@ declare global {
       storeGetAll: () => Promise<Record<string, string>>
       storeSet: (key: string, value: string | null) => Promise<void>
       minimizeWindow: () => void
+      openAssignment: () => Promise<{ assignment: object; slidesTempPath: string | null } | { error: string } | null>
+      saveAssignment: (assignment: object, slidesPdfPath: string | null) => Promise<string | null>
+      readFileAsBuffer: (filePath: string) => Promise<Uint8Array | null>
+      exportSubmission: (payload: {
+        assignmentTitle: string
+        webmBuffer: Uint8Array | null
+        quizResults: object | null
+        sessionData: object
+      }) => Promise<string | null>
     }
 
     // Web Speech API — not yet in lib.dom (proposed standard).
