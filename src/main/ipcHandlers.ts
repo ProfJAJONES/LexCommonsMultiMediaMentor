@@ -119,12 +119,22 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
           case 'mp4':
           case 'mov':
             cmd = cmd
-              .videoCodec('libx264').videoBitrate('2000k')
+              .videoCodec('libx264')
               .audioCodec('aac').audioBitrate('192k')
-              .outputOptions(['-movflags', 'faststart', '-pix_fmt', 'yuv420p'])
+              .outputOptions([
+                '-crf', '23', '-preset', 'fast',
+                '-profile:v', 'high', '-level', '4.0',
+                '-pix_fmt', 'yuv420p',
+                '-movflags', 'faststart',
+                '-avoid_negative_ts', 'make_zero',
+                '-map', '0:v:0', '-map', '0:a:0?',
+              ])
             break
           case 'mkv':
-            cmd = cmd.videoCodec('libx264').videoBitrate('2000k').audioCodec('aac').audioBitrate('192k')
+            cmd = cmd
+              .videoCodec('libx264').audioCodec('aac').audioBitrate('192k')
+              .outputOptions(['-crf', '23', '-preset', 'fast', '-avoid_negative_ts', 'make_zero',
+                '-map', '0:v:0', '-map', '0:a:0?'])
             break
           case 'mp3':
             cmd = cmd.noVideo().audioCodec('libmp3lame').audioBitrate('192k')
@@ -137,6 +147,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
             break
           default:
             cmd = cmd.videoCodec('libx264').audioCodec('aac')
+              .outputOptions(['-crf', '23', '-preset', 'fast', '-avoid_negative_ts', 'make_zero'])
         }
 
         cmd.save(chosenPath).on('end', () => resolve()).on('error', reject)
@@ -342,15 +353,23 @@ export function registerIpcHandlers(ipcMain: IpcMain, dialog: Dialog): void {
           ffmpeg.setFfmpegPath(ffmpegPath)
           await new Promise<void>((res, rej) => {
             ffmpeg(tmpWebm)
-              .videoCodec('libx264').videoBitrate('2000k')
+              .videoCodec('libx264')
               .audioCodec('aac').audioBitrate('192k')
-              .outputOptions(['-movflags', 'faststart', '-pix_fmt', 'yuv420p'])
+              .outputOptions([
+                '-crf', '23', '-preset', 'fast',
+                '-profile:v', 'high', '-level', '4.0',
+                '-pix_fmt', 'yuv420p',
+                '-movflags', 'faststart',
+                '-avoid_negative_ts', 'make_zero',
+                '-map', '0:v:0', '-map', '0:a:0?',
+              ])
               .save(mp4Out)
               .on('end', res).on('error', rej)
           })
           try { unlinkSync(tmpWebm) } catch { /* ok */ }
         } catch {
-          // ffmpeg failed — keep WebM so the student has something
+          // ffmpeg failed — delete any partial mp4, keep WebM instead
+          try { unlinkSync(mp4Out) } catch { /* ok — partial file may not exist */ }
           try { require('fs').renameSync(tmpWebm, join(tmpDir, 'recording.webm')) } catch { /* ok */ }
         }
       }
